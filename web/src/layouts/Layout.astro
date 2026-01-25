@@ -27,17 +27,19 @@ interface Props {
   image?: string;
 }
 
-const {
-  title,
-  description = 'A classic Snake game built for the WASM-4 fantasy console. Play directly in your browser with retro 8-bit graphics and sound!',
-  image = '/og-image.png',
-} = Astro.props;
-
 // Base URL for assets (handles GitHub Pages subpath)
 const base = import.meta.env.BASE_URL.replace(/\/$/, '');
 
+const {
+  title,
+  description = 'A classic Snake game built for the WASM-4 fantasy console. Play directly in your browser with retro 8-bit graphics and sound!',
+  image,
+} = Astro.props;
+
+// Resolve image URL with base path
+const resolvedImage = image ?? `${base}/og-image.png`;
 const canonicalURL = new URL(Astro.url.pathname, Astro.site);
-const imageURL = new URL(image, Astro.site);
+const imageURL = new URL(resolvedImage, Astro.site);
 ---
 
 <!doctype html>

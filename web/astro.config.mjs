@@ -7,7 +7,7 @@ const base = process.env.ASTRO_BASE || '/wasm4-snake';
 
 export default defineConfig({
   // Site URL for canonical URLs and OG images
-  site: 'https://vdustr.dev',
+  site: 'https://vdustr.github.io',
   base: base,
   build: {
     // Output to dist/ folder
