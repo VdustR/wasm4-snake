@@ -1,0 +1,120 @@
+---
+/**
+ * Base layout component for all pages
+ *
+ * Provides:
+ * - SEO meta tags (title, description, canonical URL)
+ * - Open Graph tags for social sharing
+ * - Twitter Card meta tags
+ * - PWA manifest and theme color
+ * - Schema.org structured data for games
+ * - Service worker registration for offline support
+ *
+ * @example
+ * ```astro
+ * <Layout title="Page Title" description="Custom description">
+ *   <main>Content here</main>
+ * </Layout>
+ * ```
+ */
+
+interface Props {
+  /** Page title - appears in browser tab and SEO */
+  title: string;
+  /** Meta description for SEO (max 160 chars recommended) */
+  description?: string;
+  /** Open Graph image URL (1200x630 recommended) */
+  image?: string;
+}
+
+const {
+  title,
+  description = 'A classic Snake game built for the WASM-4 fantasy console. Play directly in your browser with retro 8-bit graphics and sound!',
+  image = '/og-image.png',
+} = Astro.props;
+
+// Base URL for assets (handles GitHub Pages subpath)
+const base = import.meta.env.BASE_URL.replace(/\/$/, '');
+
+const canonicalURL = new URL(Astro.url.pathname, Astro.site);
+const imageURL = new URL(image, Astro.site);
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="generator" content={Astro.generator} />
+
+    <!-- Primary Meta Tags -->
+    <title>{title}</title>
+    <meta name="title" content={title} />
+    <meta name="description" content={description} />
+    <link rel="canonical" href={canonicalURL} />
+
+    <!-- Favicon -->
+    <link rel="icon" type="image/svg+xml" href={`${base}/favicon.svg`} />
+    <link rel="apple-touch-icon" sizes="180x180" href={`${base}/apple-touch-icon.png`} />
+
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content={canonicalURL} />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:image" content={imageURL} />
+    <meta property="og:image:alt" content="WASM-4 Snake Game Screenshot" />
+
+    <!-- Twitter -->
+    <meta property="twitter:card" content="summary_large_image" />
+    <meta property="twitter:url" content={canonicalURL} />
+    <meta property="twitter:title" content={title} />
+    <meta property="twitter:description" content={description} />
+    <meta property="twitter:image" content={imageURL} />
+
+    <!-- PWA -->
+    <link rel="manifest" href={`${base}/manifest.json`} />
+    <meta name="theme-color" content="#1a1c2c" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Snake" />
+
+    <!-- Schema.org structured data -->
+    <script is:inline type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "VideoGame",
+        "name": "WASM-4 Snake",
+        "description": "A classic Snake game built for the WASM-4 fantasy console with retro 8-bit graphics.",
+        "genre": "Arcade",
+        "gamePlatform": "Web Browser",
+        "operatingSystem": "Any",
+        "applicationCategory": "Game",
+        "offers": {
+          "@type": "Offer",
+          "price": "0",
+          "priceCurrency": "USD"
+        }
+      }
+    </script>
+  </head>
+  <body>
+    <slot />
+
+    <!-- Service Worker Registration -->
+    <script>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register(`${import.meta.env.BASE_URL}sw.js`).catch((err) => {
+            console.log('SW registration failed:', err);
+          });
+        });
+      }
+    </script>
+  </body>
+</html>
+
+<style is:global>
+  @import '../styles/global.css';
+</style>
