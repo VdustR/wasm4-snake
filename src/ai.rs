@@ -150,28 +150,41 @@ impl PathFinder {
     }
 
     /// Simple direction towards target (fallback when BFS fails)
-    fn simple_direction(
-        &self,
-        from: Point,
-        to: Point,
-        obstacles: &[Point],
-    ) -> Option<Direction> {
+    fn simple_direction(&self, from: Point, to: Point, obstacles: &[Point]) -> Option<Direction> {
         let dx = to.x - from.x;
         let dy = to.y - from.y;
 
         // Prioritize the axis with larger distance
         let directions = if dx.abs() > dy.abs() {
             if dx > 0 {
-                [Direction::Right, Direction::Down, Direction::Up, Direction::Left]
+                [
+                    Direction::Right,
+                    Direction::Down,
+                    Direction::Up,
+                    Direction::Left,
+                ]
             } else {
-                [Direction::Left, Direction::Down, Direction::Up, Direction::Right]
+                [
+                    Direction::Left,
+                    Direction::Down,
+                    Direction::Up,
+                    Direction::Right,
+                ]
             }
+        } else if dy > 0 {
+            [
+                Direction::Down,
+                Direction::Right,
+                Direction::Left,
+                Direction::Up,
+            ]
         } else {
-            if dy > 0 {
-                [Direction::Down, Direction::Right, Direction::Left, Direction::Up]
-            } else {
-                [Direction::Up, Direction::Right, Direction::Left, Direction::Down]
-            }
+            [
+                Direction::Up,
+                Direction::Right,
+                Direction::Left,
+                Direction::Down,
+            ]
         };
 
         for dir in directions {

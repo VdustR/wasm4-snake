@@ -9,6 +9,7 @@ static mut FAST_HEAP: [u8; FAST_HEAP_SIZE] = [0u8; FAST_HEAP_SIZE];
 static mut HEAP: [u8; HEAP_SIZE] = [0u8; HEAP_SIZE];
 
 #[global_allocator]
+#[allow(static_mut_refs)]
 static ALLOC: NonThreadsafeAlloc = unsafe {
     let fast_param = FastAllocParam::new(FAST_HEAP.as_ptr(), FAST_HEAP_SIZE);
     let buddy_param = BuddyAllocParam::new(HEAP.as_ptr(), HEAP_SIZE, LEAF_SIZE);

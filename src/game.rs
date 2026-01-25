@@ -118,8 +118,8 @@ impl Difficulty {
     }
 
     /// Get index from difficulty
-    pub const fn to_index(&self) -> u8 {
-        *self as u8
+    pub const fn to_index(self) -> u8 {
+        self as u8
     }
 
     /// Maximum snake length for this difficulty (0 = unlimited)
@@ -225,7 +225,7 @@ impl Game {
             }
             GameState::Playing => {
                 // Update player snake
-                if self.frame_count % self.move_interval == 0 {
+                if self.frame_count.is_multiple_of(self.move_interval) {
                     self.update_game_logic();
                 }
 
@@ -579,12 +579,12 @@ impl Game {
                 }
 
                 // Pause with both buttons held
-                if gamepad & (BUTTON_1 | BUTTON_2) == (BUTTON_1 | BUTTON_2) {
-                    if self.prev_gamepad & (BUTTON_1 | BUTTON_2) != (BUTTON_1 | BUTTON_2) {
-                        self.state = GameState::Paused;
-                        self.menu_selection = 0;
-                        self.play_menu_sound();
-                    }
+                if gamepad & (BUTTON_1 | BUTTON_2) == (BUTTON_1 | BUTTON_2)
+                    && self.prev_gamepad & (BUTTON_1 | BUTTON_2) != (BUTTON_1 | BUTTON_2)
+                {
+                    self.state = GameState::Paused;
+                    self.menu_selection = 0;
+                    self.play_menu_sound();
                 }
             }
             GameState::Paused => {
@@ -668,9 +668,7 @@ impl Game {
         if self.snake.collides_with_self() {
             // Classic mode: instant death
             // Other modes: shrink (death only at min length)
-            if self.difficulty == Difficulty::Classic {
-                self.on_game_over();
-            } else if !self.snake.shrink() {
+            if self.difficulty == Difficulty::Classic || !self.snake.shrink() {
                 self.on_game_over();
             }
         }
@@ -823,7 +821,7 @@ impl Game {
             } else {
                 unsafe { *DRAW_COLORS = 0x02 };
             }
-            rect(145 + i as i32 * 3, 2, 2, 6);
+            rect(145 + i * 3, 2, 2, 6);
         }
     }
 
@@ -850,7 +848,7 @@ impl Game {
     fn draw_main_menu(&self) {
         menu::draw_main_menu();
 
-        if (self.blink_timer / 30) % 2 == 0 {
+        if (self.blink_timer / 30).is_multiple_of(2) {
             unsafe { *DRAW_COLORS = 0x03 };
         } else {
             unsafe { *DRAW_COLORS = 0x02 };
@@ -926,7 +924,7 @@ impl Game {
         if !self.music_enabled {
             return;
         }
-        if self.frame_count % MUSIC_INTERVAL != 0 {
+        if !self.frame_count.is_multiple_of(MUSIC_INTERVAL) {
             return;
         }
 

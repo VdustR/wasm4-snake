@@ -39,6 +39,7 @@ static mut GAME: Option<Game> = None;
 /// Called once at startup
 #[cfg(target_arch = "wasm32")]
 #[no_mangle]
+#[allow(static_mut_refs)]
 fn start() {
     unsafe {
         GAME = Some(Game::new());
@@ -48,6 +49,7 @@ fn start() {
 /// Called every frame (60 times per second)
 #[cfg(target_arch = "wasm32")]
 #[no_mangle]
+#[allow(static_mut_refs)]
 fn update() {
     unsafe {
         if let Some(game) = GAME.as_mut() {

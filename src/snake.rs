@@ -139,6 +139,7 @@ impl Snake {
     /// Try to grow or gain energy based on length limit.
     /// - If below max_length: grow normally
     /// - If at max_length: gain energy instead
+    ///
     /// Returns true if grew, false if gained energy (or at max energy)
     pub fn try_grow_or_energy(&mut self, max_length: usize) -> bool {
         if self.length < max_length && self.length < MAX_SNAKE_LENGTH {

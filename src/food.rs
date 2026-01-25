@@ -49,7 +49,6 @@ impl FoodSize {
             FoodSize::Large
         }
     }
-
 }
 
 /// Food that the snake can eat

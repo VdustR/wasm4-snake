@@ -8,6 +8,13 @@ A snake game built for the [WASM-4](https://wasm4.org/) fantasy console using Ru
 
 - Rust toolchain with `wasm32-unknown-unknown` target
 - w4 CLI (`npm install -g wasm4`)
+- [lefthook](https://github.com/evilmartians/lefthook) for git hooks
+
+### Setup Git Hooks
+
+```bash
+lefthook install
+```
 
 ### Build
 
