@@ -46,7 +46,7 @@ jobs:
       # Setup Rust toolchain
       # ===================
       - name: Setup Rust
-        uses: dtolnay/rust-action@stable
+        uses: dtolnay/rust-toolchain@stable
         with:
           targets: wasm32-unknown-unknown
           components: rustfmt, clippy
@@ -58,7 +58,7 @@ jobs:
         run: cargo fmt --check
 
       - name: Run Clippy
-        run: cargo clippy -- -D warnings
+        run: cargo clippy --target wasm32-unknown-unknown -- -D warnings
 
       # ===================
       # Build WASM-4 game
