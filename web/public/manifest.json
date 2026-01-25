@@ -1,7 +1,7 @@
 {
   "name": "WASM-4 Snake",
   "short_name": "Snake",
-  "description": "A classic Snake game built for the WASM-4 fantasy console with retro 8-bit graphics and sound.",
+  "description": "A fun snake game for WASM-4. Eat, grow, survive against AI opponents!",
   "start_url": "/wasm4-snake/",
   "display": "standalone",
   "background_color": "#1a1c2c",

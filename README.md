@@ -1,6 +1,6 @@
-# WASM-4 Snake
+# WASM-4 Snake 🐍
 
-A classic Snake game built for the [WASM-4](https://wasm4.org) fantasy console using Rust, with a modern PWA landing page built with Astro.
+A fun snake game for the [WASM-4](https://wasm4.org) fantasy console. Eat, grow, and survive against AI opponents across 5 difficulty levels — from chill Classic mode to the brutal Nightmare challenge.
 
 ## Play Online
 
@@ -8,13 +8,14 @@ A classic Snake game built for the [WASM-4](https://wasm4.org) fantasy console u
 
 ## Features
 
-- Classic snake gameplay with screen wrapping
+- Snake gameplay with screen wrapping
 - 5 difficulty levels: Classic, Noob, Normal, Hell, Nightmare
-- Battle modes with AI enemies (BFS pathfinding)
-- Energy system for speed boost/slowdown abilities
+- Battle modes where collisions shrink instead of kill
+- AI opponents with BFS pathfinding
+- Speed boost & slowdown abilities
 - 3 food sizes with different rewards
 - High score persistence per difficulty
-- Sound effects and background music (toggleable)
+- 8-bit music & sound effects
 - PWA support (offline play, installable)
 
 See [Game Design](docs/GAME_DESIGN.md) for complete game mechanics.
