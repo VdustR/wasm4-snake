@@ -1048,9 +1048,6 @@ impl Game {
         // Draw score
         self.draw_score();
 
-        // Draw speed indicator
-        self.draw_speed_indicator();
-
         // Draw energy indicator (non-Classic only)
         self.draw_energy_indicator();
 
@@ -1157,31 +1154,7 @@ impl Game {
         text(score_str, 2, 2);
     }
 
-    /// Draw speed indicator in top-right corner
-    fn draw_speed_indicator(&self) {
-        let speed_level = if self.move_interval <= 7 {
-            5
-        } else if self.move_interval <= 11 {
-            4
-        } else if self.move_interval <= 15 {
-            3
-        } else if self.move_interval <= 22 {
-            2
-        } else {
-            1
-        };
-
-        for i in 0..5 {
-            if i < speed_level {
-                unsafe { *DRAW_COLORS = 0x04 };
-            } else {
-                unsafe { *DRAW_COLORS = 0x02 };
-            }
-            rect(145 + i * 3, 2, 2, 6);
-        }
-    }
-
-    /// Draw energy indicator below speed indicator (only in non-Classic mode)
+    /// Draw energy indicator in top-right corner (only in non-Classic mode)
     fn draw_energy_indicator(&self) {
         if self.difficulty == Difficulty::Classic {
             return; // No energy in Classic mode
@@ -1189,14 +1162,14 @@ impl Game {
 
         use crate::snake::MAX_ENERGY;
 
-        // Draw energy bar (10 segments max)
+        // Draw energy bar from right to left
         for i in 0..MAX_ENERGY {
             if i < self.snake.energy {
                 unsafe { *DRAW_COLORS = 0x03 }; // Green for filled
             } else {
                 unsafe { *DRAW_COLORS = 0x01 }; // Dark for empty
             }
-            rect(145 + i as i32 * 3, 10, 2, 4);
+            rect(157 - i as i32 * 3, 2, 2, 4);
         }
     }
 
