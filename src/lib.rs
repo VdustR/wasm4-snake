@@ -1,30 +1,61 @@
+// Only use no_std for WASM target
+#![cfg_attr(target_arch = "wasm32", no_std)]
+
 #[cfg(feature = "buddy-alloc")]
+#[cfg(target_arch = "wasm32")]
 mod alloc;
+
+// Panic handler for WASM (no_std requires this)
+#[cfg(target_arch = "wasm32")]
+#[panic_handler]
+fn panic_handler(_info: &core::panic::PanicInfo) -> ! {
+    // In WASM-4, we just loop forever on panic
+    loop {}
+}
+
+mod food;
+mod rng;
+mod snake;
+
+// WASM-4 specific modules (only for WASM target)
+#[cfg(target_arch = "wasm32")]
+mod ai;
+#[cfg(target_arch = "wasm32")]
+mod enemy;
+#[cfg(target_arch = "wasm32")]
+mod game;
+#[cfg(target_arch = "wasm32")]
+mod menu;
+#[cfg(target_arch = "wasm32")]
 mod wasm4;
-use wasm4::*;
 
-#[rustfmt::skip]
-const SMILEY: [u8; 8] = [
-    0b11000011,
-    0b10000001,
-    0b00100100,
-    0b00100100,
-    0b00000000,
-    0b00100100,
-    0b10011001,
-    0b11000011,
-];
+#[cfg(target_arch = "wasm32")]
+use game::Game;
 
+/// Global game instance
+#[cfg(target_arch = "wasm32")]
+static mut GAME: Option<Game> = None;
+
+/// Called once at startup
+#[cfg(target_arch = "wasm32")]
+#[no_mangle]
+fn start() {
+    unsafe {
+        GAME = Some(Game::new());
+    }
+}
+
+/// Called every frame (60 times per second)
+#[cfg(target_arch = "wasm32")]
 #[no_mangle]
 fn update() {
-    unsafe { *DRAW_COLORS = 2 }
-    text("Hello from Rust!", 10, 10);
-
-    let gamepad = unsafe { *GAMEPAD1 };
-    if gamepad & BUTTON_1 != 0 {
-        unsafe { *DRAW_COLORS = 4 }
+    unsafe {
+        if let Some(game) = GAME.as_mut() {
+            game.update();
+        }
     }
-
-    blit(&SMILEY, 76, 76, 8, 8, BLIT_1BPP);
-    text("Press X to blink", 16, 90);
 }
+
+// Re-export for tests
+#[cfg(test)]
+pub use snake::{Direction, Point, Snake, GRID_SIZE, MAX_SNAKE_LENGTH};

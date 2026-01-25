@@ -1,0 +1,13 @@
+{
+  // Extends Astro's strict TypeScript configuration
+  // See: https://docs.astro.build/en/guides/typescript/
+  "extends": "astro/tsconfigs/strict",
+  "compilerOptions": {
+    // Enable path aliases for cleaner imports
+    // Usage: import Component from '@/components/Component.astro'
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["src/*"]
+    }
+  }
+}

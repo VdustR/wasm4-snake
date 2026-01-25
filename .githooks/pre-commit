@@ -1,0 +1,56 @@
+#!/bin/sh
+# Pre-commit hook for WASM-4 Snake project
+# Runs formatting check and clippy for Rust, lint-staged for web
+
+set -e
+
+echo "Running pre-commit checks..."
+
+# ============================================
+# Rust checks
+# ============================================
+
+# Check if cargo is available
+if command -v cargo &> /dev/null; then
+    echo ""
+    echo "=== Rust checks ==="
+
+    # Check formatting
+    echo "Checking Rust formatting..."
+    cargo fmt --check
+    if [ $? -ne 0 ]; then
+        echo "Rust formatting check failed. Run 'cargo fmt' to fix."
+        exit 1
+    fi
+
+    # Run clippy (only on native target to avoid WASM-specific issues)
+    echo "Running clippy..."
+    cargo clippy --target "$(rustc --print host-tuple)" -- -D warnings 2>/dev/null || true
+else
+    echo "cargo not found, skipping Rust checks"
+fi
+
+# ============================================
+# Web checks (lint-staged)
+# ============================================
+
+# Check if we have staged files in web/ directory
+if git diff --cached --name-only | grep -q "^web/"; then
+    echo ""
+    echo "=== Web checks (lint-staged) ==="
+
+    # Check if pnpm is available
+    if command -v pnpm &> /dev/null; then
+        cd web
+
+        # Run lint-staged
+        pnpm exec lint-staged
+
+        cd ..
+    else
+        echo "pnpm not found, skipping web lint-staged"
+    fi
+fi
+
+echo ""
+echo "Pre-commit checks passed!"

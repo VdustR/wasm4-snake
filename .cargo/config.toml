@@ -1,5 +1,12 @@
+# Default target for cargo build (not applied to cargo test)
+# Use: cargo build --release
+# For tests: cargo test (runs on native target)
 [build]
 target = "wasm32-unknown-unknown"
+
+[alias]
+# Convenience alias for running tests on native target
+test-native = "test --target aarch64-apple-darwin"
 
 [target.wasm32-unknown-unknown]
 rustflags = [

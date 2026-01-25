@@ -1,0 +1,8 @@
+# Clippy configuration
+# https://doc.rust-lang.org/clippy/
+
+# Allow up to 7 function arguments (WASM-4 APIs sometimes need many)
+too-many-arguments-threshold = 7
+
+# Cognitive complexity threshold
+cognitive-complexity-threshold = 30

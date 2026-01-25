@@ -1,0 +1,257 @@
+---
+import Layout from '../layouts/Layout.astro';
+import GameEmbed from '../components/GameEmbed.astro';
+import { Icon } from 'astro-icon/components';
+---
+
+<Layout title="WASM-4 Snake - Classic 8-bit Arcade Game">
+  <main class="container">
+    <header class="hero">
+      <h1>WASM-4 Snake</h1>
+      <p class="tagline">Classic arcade action on the fantasy console</p>
+    </header>
+
+    <section class="game-section" aria-label="Game">
+      <GameEmbed />
+    </section>
+
+    <section class="controls-section" aria-labelledby="controls-heading">
+      <h2 id="controls-heading">Controls</h2>
+      <div class="controls">
+        <div class="control-item">
+          <span class="control-key"><Icon name="pixelarticons:arrow-up" class="arrow-icon" /></span>
+          <span>Move Up</span>
+        </div>
+        <div class="control-item">
+          <span class="control-key"><Icon name="pixelarticons:arrow-down" class="arrow-icon" /></span>
+          <span>Move Down</span>
+        </div>
+        <div class="control-item">
+          <span class="control-key"><Icon name="pixelarticons:arrow-left" class="arrow-icon" /></span>
+          <span>Move Left</span>
+        </div>
+        <div class="control-item">
+          <span class="control-key"><Icon name="pixelarticons:arrow-right" class="arrow-icon" /></span>
+          <span>Move Right</span>
+        </div>
+      </div>
+      <p class="controls-note">Press any key to restart when game over</p>
+    </section>
+
+    <section class="features-section" aria-labelledby="features-heading">
+      <h2 id="features-heading">Features</h2>
+      <ul class="features-list">
+        <li>
+          <span class="feature-icon"><Icon name="pixelarticons:gamepad" /></span>
+          <span>Classic snake gameplay with screen wrapping</span>
+        </li>
+        <li>
+          <span class="feature-icon"><Icon name="pixelarticons:music" /></span>
+          <span>8-bit background music &amp; sound effects</span>
+        </li>
+        <li>
+          <span class="feature-icon"><Icon name="pixelarticons:trophy" /></span>
+          <span>Score tracking to beat your high score</span>
+        </li>
+        <li>
+          <span class="feature-icon"><Icon name="pixelarticons:device-phone" /></span>
+          <span>Works offline as a PWA</span>
+        </li>
+      </ul>
+    </section>
+
+    <section class="tech-section" aria-labelledby="tech-heading">
+      <h2 id="tech-heading">Built With</h2>
+      <div class="tech-badges">
+        <a href="https://wasm4.org" target="_blank" rel="noopener" class="tech-badge"> WASM-4 </a>
+        <a href="https://www.rust-lang.org" target="_blank" rel="noopener" class="tech-badge">
+          Rust
+        </a>
+        <a href="https://astro.build" target="_blank" rel="noopener" class="tech-badge"> Astro </a>
+      </div>
+    </section>
+
+    <section class="cta-section" aria-labelledby="source-heading">
+      <h3 id="source-heading">Open Source</h3>
+      <p>View the source code and contribute on GitHub</p>
+      <a
+        href="https://github.com/VdustR/wasm4-snake"
+        target="_blank"
+        rel="noopener"
+        class="btn"
+      >
+        View Source
+      </a>
+    </section>
+  </main>
+
+  <footer>
+    <p>
+      Made with <Icon name="pixelarticons:heart" class="heart-icon" aria-label="love" /> by
+      <a href="https://github.com/VdustR" target="_blank" rel="noopener">VdustR</a>
+    </p>
+    <p>
+      Built with <a href="https://wasm4.org" target="_blank" rel="noopener">WASM-4</a> |
+      MIT License
+    </p>
+  </footer>
+</Layout>
+
+<style is:global>
+  main {
+    padding: var(--spacing-lg) 0;
+  }
+
+  .hero {
+    text-align: center;
+    margin-bottom: var(--spacing-xl);
+  }
+
+  .tagline {
+    font-family: var(--font-retro);
+    font-size: 1.5rem;
+    color: var(--color-green);
+    margin-top: var(--spacing-sm);
+    margin-left: auto;
+    margin-right: auto;
+  }
+
+  .game-section {
+    margin: var(--spacing-xl) 0;
+  }
+
+  .controls-section {
+    text-align: center;
+    margin: var(--spacing-xl) 0;
+  }
+
+  .controls {
+    display: flex;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: var(--spacing-md);
+    margin-top: var(--spacing-md);
+  }
+
+  .control-item {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+  }
+
+  .controls-note {
+    font-size: 0.875rem;
+    color: var(--color-text-muted);
+    margin-top: var(--spacing-md);
+    margin-left: auto;
+    margin-right: auto;
+  }
+
+  /* Pixelarticons styling */
+  .arrow-icon {
+    width: 16px;
+    height: 16px;
+    color: var(--color-green);
+  }
+
+  .heart-icon {
+    width: 16px;
+    height: 16px;
+    color: #e74c3c;
+    vertical-align: middle;
+  }
+
+  .feature-icon svg {
+    width: 24px;
+    height: 24px;
+    color: var(--color-yellow);
+  }
+
+  .features-section {
+    text-align: center;
+    margin: var(--spacing-xl) 0;
+  }
+
+  .features-list {
+    list-style: none;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: var(--spacing-md);
+    margin-top: var(--spacing-md);
+    text-align: left;
+  }
+
+  .features-list li {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    padding: var(--spacing-sm);
+    background-color: var(--color-bg-light);
+    border-left: 3px solid var(--color-green);
+  }
+
+  .feature-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+  }
+
+  .tech-section {
+    text-align: center;
+    margin: var(--spacing-xl) 0;
+  }
+
+  .tech-badges {
+    display: flex;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: var(--spacing-sm);
+    margin-top: var(--spacing-md);
+  }
+
+  .tech-badge {
+    font-family: var(--font-pixel);
+    font-size: 0.625rem;
+    padding: var(--spacing-xs) var(--spacing-sm);
+    background-color: var(--color-purple);
+    border: 2px solid var(--color-yellow);
+    color: var(--color-yellow);
+    text-decoration: none;
+    transition: all 0.2s ease;
+  }
+
+  .tech-badge:hover {
+    background-color: var(--color-yellow);
+    color: var(--color-bg);
+  }
+
+  .cta-section {
+    text-align: center;
+    margin: var(--spacing-xl) 0;
+    padding: var(--spacing-lg);
+    background-color: var(--color-bg-light);
+    border: 2px dashed var(--color-purple);
+  }
+
+  .cta-section p {
+    max-width: none;
+    margin-bottom: var(--spacing-md);
+  }
+
+  /* Mobile adjustments */
+  @media (max-width: 480px) {
+    .tagline {
+      font-size: 1.125rem;
+    }
+
+    .features-list {
+      grid-template-columns: 1fr;
+    }
+
+    .control-item {
+      font-size: 0.875rem;
+    }
+  }
+</style>

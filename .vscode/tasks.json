@@ -1,0 +1,72 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Build (Release)",
+      "type": "cargo",
+      "command": "build",
+      "args": ["--release"],
+      "problemMatcher": ["$rustc"],
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      }
+    },
+    {
+      "label": "Run Game",
+      "type": "shell",
+      "command": "w4",
+      "args": ["run", "target/wasm32-unknown-unknown/release/cart.wasm"],
+      "dependsOn": "Build (Release)",
+      "problemMatcher": []
+    },
+    {
+      "label": "Watch Mode",
+      "type": "shell",
+      "command": "w4",
+      "args": ["watch"],
+      "problemMatcher": [],
+      "isBackground": true
+    },
+    {
+      "label": "Run Tests",
+      "type": "cargo",
+      "command": "test",
+      "args": ["--target", "aarch64-apple-darwin"],
+      "problemMatcher": ["$rustc"],
+      "group": {
+        "kind": "test",
+        "isDefault": true
+      }
+    },
+    {
+      "label": "Check Formatting",
+      "type": "cargo",
+      "command": "fmt",
+      "args": ["--check"],
+      "problemMatcher": []
+    },
+    {
+      "label": "Run Clippy",
+      "type": "cargo",
+      "command": "clippy",
+      "args": ["--", "-D", "warnings"],
+      "problemMatcher": ["$rustc"]
+    },
+    {
+      "label": "Bundle HTML",
+      "type": "shell",
+      "command": "w4",
+      "args": [
+        "bundle",
+        "target/wasm32-unknown-unknown/release/cart.wasm",
+        "--title",
+        "WASM-4 Snake",
+        "--html",
+        "dist/index.html"
+      ],
+      "dependsOn": "Build (Release)",
+      "problemMatcher": []
+    }
+  ]
+}

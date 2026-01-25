@@ -1,0 +1,34 @@
+{
+  // =============================================================================
+  // Recommended VSCode Extensions
+  // =============================================================================
+  // Install all: Cmd/Ctrl+Shift+P -> "Show Recommended Extensions"
+  // =============================================================================
+
+  "recommendations": [
+    // ---------------------------------------------------------------------------
+    // Rust Development (WASM-4 Game)
+    // ---------------------------------------------------------------------------
+    "rust-lang.rust-analyzer",     // Rust language support
+    "tamasfe.even-better-toml",    // TOML syntax (Cargo.toml)
+    "serayuzgur.crates",           // Cargo.toml dependency management
+
+    // ---------------------------------------------------------------------------
+    // WASM Development
+    // ---------------------------------------------------------------------------
+    "nickarls.wasm",               // WebAssembly syntax highlighting
+
+    // ---------------------------------------------------------------------------
+    // Web Development (Astro)
+    // ---------------------------------------------------------------------------
+    "astro-build.astro-vscode",    // Astro language support
+    "dbaeumer.vscode-eslint",      // ESLint (uses local version)
+    "esbenp.prettier-vscode",      // Prettier (uses local version)
+
+    // ---------------------------------------------------------------------------
+    // General Development
+    // ---------------------------------------------------------------------------
+    "EditorConfig.EditorConfig",           // EditorConfig support
+    "streetsidesoftware.code-spell-checker" // Spell checking
+  ]
+}

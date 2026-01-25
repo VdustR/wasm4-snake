@@ -1,0 +1,124 @@
+# =============================================================================
+# GitHub Actions: Deploy WASM-4 Snake to GitHub Pages
+# =============================================================================
+#
+# This workflow:
+# 1. Checks Rust formatting and linting
+# 2. Builds the WASM-4 game cartridge
+# 3. Runs Rust unit tests
+# 4. Bundles WASM-4 game as HTML
+# 5. Builds the Astro landing page
+# 6. Deploys everything to GitHub Pages
+#
+# Triggers:
+# - Push to main branch
+# - Manual workflow dispatch
+#
+# =============================================================================
+
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      # ===================
+      # Checkout repository
+      # ===================
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # ===================
+      # Setup Rust toolchain
+      # ===================
+      - name: Setup Rust
+        uses: dtolnay/rust-action@stable
+        with:
+          targets: wasm32-unknown-unknown
+          components: rustfmt, clippy
+
+      # ===================
+      # Rust quality checks
+      # ===================
+      - name: Check formatting
+        run: cargo fmt --check
+
+      - name: Run Clippy
+        run: cargo clippy -- -D warnings
+
+      # ===================
+      # Build WASM-4 game
+      # ===================
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Enable Corepack (pnpm)
+        run: corepack enable
+
+      - name: Install WASM-4 CLI
+        run: npm install -g wasm4
+
+      - name: Build WASM cartridge
+        run: cargo build --release
+
+      - name: Run Rust tests
+        run: cargo test --target x86_64-unknown-linux-gnu
+
+      # ===================
+      # Bundle WASM-4 game
+      # ===================
+      - name: Bundle WASM-4 game as HTML
+        run: |
+          mkdir -p web/public/game
+          w4 bundle target/wasm32-unknown-unknown/release/cart.wasm \
+            --title "WASM-4 Snake" \
+            --html web/public/game/index.html
+
+      # ===================
+      # Build Astro website
+      # ===================
+      - name: Install web dependencies
+        working-directory: web
+        run: pnpm install --frozen-lockfile
+
+      - name: Build Astro site
+        working-directory: web
+        env:
+          # Dynamic base URL from repository name for GitHub Pages
+          ASTRO_BASE: /${{ github.event.repository.name }}
+        run: pnpm build
+
+      # ===================
+      # Upload for deployment
+      # ===================
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: web/dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
