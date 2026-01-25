@@ -2,10 +2,7 @@
 
 ## Overview
 
-This Snake game is built for the WASM-4 fantasy console, a constrained environment with:
-- 160x160 pixel display (4 colors)
-- 64 KB total memory
-- 60 FPS fixed frame rate
+This Snake game is built for the WASM-4 fantasy console. See [GAME_DESIGN.md](GAME_DESIGN.md) for WASM-4 constraints and game mechanics.
 
 ## Module Structure
 

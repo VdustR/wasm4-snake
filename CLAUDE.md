@@ -2,125 +2,74 @@
 
 A snake game built for the [WASM-4](https://wasm4.org/) fantasy console using Rust.
 
-## Development
-
-### Prerequisites
-
-- Rust toolchain with `wasm32-unknown-unknown` target
-- w4 CLI (`npm install -g wasm4`)
-- [lefthook](https://github.com/evilmartians/lefthook) for git hooks
-
-### Setup Git Hooks
+## Quick Reference
 
 ```bash
-lefthook install
-```
-
-### Build
-
-```bash
+# Build
 cargo build --release
-```
 
-### Run
-
-```bash
+# Run
 w4 run target/wasm32-unknown-unknown/release/cart.wasm
-```
 
-### Watch Mode (Live Reload)
-
-```bash
+# Watch mode
 w4 watch
+
+# Test (native target)
+cargo test --target $(rustc --print host-tuple)
 ```
-
-## WASM-4 Constraints
-
-- **Display**: 160x160 pixels, 4 colors
-- **Memory**: 64 KB RAM
-- **Cartridge**: 64 KB max
-- **Frame Rate**: 60 FPS
-- **Input**: Gamepad (D-pad + 2 buttons)
 
 ## Project Structure
 
 ```
 src/
-├── lib.rs      # Main game entry point (update function)
+├── lib.rs      # Entry point (update function)
 ├── wasm4.rs    # WASM-4 API bindings
 ├── alloc.rs    # Memory allocator (buddy-alloc)
-├── game.rs     # Game state machine & main loop
+├── game.rs     # Game state machine, main loop, Difficulty enum
 ├── snake.rs    # Snake logic (player & base)
 ├── food.rs     # Food system (3 sizes)
-├── supply.rs   # Supply pack system (energy pickups)
+├── supply.rs   # Supply pack system
 ├── rng.rs      # Random number generator
-├── enemy.rs    # Enemy snake system
+├── enemy.rs    # Enemy snake, EnemyAIState enum
 ├── ai.rs       # AI pathfinding (BFS)
 └── menu.rs     # Menu rendering
 ```
 
-## Game Rules
+## Game Design Reference
 
-### Controls
-- **D-pad**: Move snake (Up/Down/Left/Right)
-- **X button**: Activate speed boost (costs 1 energy, non-Classic only)
-- **Z button**: Activate slowdown (free, cancels boost, non-Classic only)
-
-### Energy System
-- Maximum energy: 5 units
-- Initial energy: 3 units
-- Gain energy by:
-  - Collecting supply packs (+1)
-  - Eating food when at max length (+1)
-
-### Speed Boost (X button)
-- Duration: 2 seconds
-- Cooldown: 5 seconds
-- Cost: 1 energy
-- Visual: Wave flash effect across body
-- Audio: Music plays at 2x speed and pitch
-
-### Slowdown (Z button)
-- Duration: 2 seconds
-- Cooldown: 5 seconds
-- Cost: Free
-- Visual: Head-only flash effect
-- Special: Immediately cancels active boost
-
-### Supply Packs
-- Spawn every 10 seconds (50% chance)
-- Despawn after 15 seconds if not collected
-- Visual: Blinking yellow/green diamond
-- Effect: +1 energy
-- Note: Not available in Classic mode
-
-### Classic Mode
-- Collision = instant death (traditional snake)
-- No length limit
-- No boost/slowdown abilities
-- No supply packs
-- No enemies
-
-### Battle Modes (Noob, Normal, Hell, Nightmare)
-- Collision = shrink (death only at min length 3)
-- Length limit varies by difficulty
-- Energy system enabled
-- Supply packs enabled
-- Body attack: head hits body = attacker shrinks, victim grows
-
-### AI Behavior (Battle Modes)
-- States: Idle, Chasing, Seeking, GrabbingSupply, Fleeing
-- Higher difficulty = more aggressive AI
-- AI can use boost when chasing or fleeing
-- AI can use slowdown for precise control near targets
+**See [docs/GAME_DESIGN.md](docs/GAME_DESIGN.md) for complete game mechanics**, including:
+- Game modes (Classic vs Battle)
+- Difficulty parameters
+- Combat system (shrink/grow)
+- AI behavior and parameters
 
 ## Code Conventions
 
 - Use `unsafe` blocks only for WASM-4 API calls
 - Keep the cart size under 64 KB
 - Comment game logic in English
+- All game constants in `game.rs` (durations, cooldowns, etc.)
 
 ## Testing
 
-- **Always use `w4 run` directly** to test game functionality (not web e2e)
+- **Always use `w4 run` directly** to test game functionality
 - Web testing is only for landing page and PWA functionality
+- Run `cargo test` for unit tests (uses native target)
+
+## Documentation Maintenance
+
+When game mechanics or features change:
+
+1. **Update `docs/GAME_DESIGN.md`** - Single source of truth for game rules
+2. Update `README.md` only if the change affects the public overview
+3. Update `docs/ARCHITECTURE.md` for technical design changes
+4. Update this file (`CLAUDE.md`) only for development workflow changes
+
+Documentation hierarchy:
+| File | Purpose | Update when... |
+|------|---------|----------------|
+| `docs/GAME_DESIGN.md` | Complete game mechanics | Game rules change |
+| `README.md` | Public overview | Features/setup change |
+| `docs/ARCHITECTURE.md` | Technical design | Architecture decisions |
+| `docs/DEVELOPMENT.md` | Development commands | Tools/workflow change |
+| `CLAUDE.md` | AI development context | Code structure changes |

@@ -81,38 +81,6 @@ The pre-commit hook will:
 1. Check code formatting (`cargo fmt --check`)
 2. Run clippy linter
 
-## Project Status
-
-### Completed
-- [x] Project scaffold
-- [x] WASM-4 API bindings
-- [x] Memory allocator setup
-- [x] Snake data structure
-- [x] RNG implementation
-- [x] Food logic
-- [x] Game state machine
-- [x] Rendering
-- [x] Sound effects
-- [x] Background music (8-bit melody loop)
-- [x] Color palette
-- [x] Score display
-- [x] Game over screen
-- [x] GitHub Actions workflow
-- [x] GitHub Pages setup
-- [x] README documentation
-- [x] Linting setup (rustfmt, clippy)
-- [x] Pre-commit hooks
-
-## Controls
-
-| Key | Action |
-|-----|--------|
-| Arrow Up | Move up |
-| Arrow Down | Move down |
-| Arrow Left | Move left |
-| Arrow Right | Move right |
-| Any Key | Restart (game over) |
-
 ## Debugging
 
 Use `trace()` to print debug messages:

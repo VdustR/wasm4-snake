@@ -3,7 +3,7 @@ use crate::enemy::{EnemyAIState, EnemyManager, MAX_ENEMIES};
 use crate::food::{Food, FoodSize};
 use crate::menu;
 use crate::rng::Rng;
-use crate::snake::{Direction, Point, Snake, GRID_SIZE};
+use crate::snake::{Direction, Point, Snake, GRID_SIZE, MIN_SNAKE_LENGTH};
 use crate::supply::Supply;
 use crate::wasm4::*;
 
@@ -174,6 +174,18 @@ impl Difficulty {
             Difficulty::Normal => 40,
             Difficulty::Hell => 60,
             Difficulty::Nightmare => 80,
+        }
+    }
+
+    /// Probability (0-100) that AI will attack even when shorter than target.
+    /// Higher difficulty = more willing to sacrifice length for attack opportunities.
+    pub const fn sacrifice_willingness(&self) -> u8 {
+        match self {
+            Difficulty::Classic => 0,
+            Difficulty::Noob => 0, // Never sacrifices, always flees when shorter
+            Difficulty::Normal => 15, // Occasionally takes risks
+            Difficulty::Hell => 40, // Often attacks despite being shorter
+            Difficulty::Nightmare => 70, // Very aggressive, frequently sacrifices length
         }
     }
 }
@@ -406,9 +418,22 @@ impl Game {
                     100 // Far away when no supply
                 };
 
-                // Check if should flee (player is close and longer)
+                // Calculate length difference for sacrifice decisions
+                let length_diff = player_length as i32 - enemy.length as i32;
+                let sacrifice_willingness = difficulty.sacrifice_willingness();
+
+                // Check if AI should sacrifice length to attack (aggressive behavior)
+                // Only when: close to player, player is longer (but not too much), AI has length to spare
+                let should_sacrifice_attack = dist_to_player < 5
+                    && length_diff > 0
+                    && length_diff <= 3 // Don't suicide against much longer snakes
+                    && enemy.length > MIN_SNAKE_LENGTH + 1 // Have length to spare
+                    && self.rng.range(0, 100) < sacrifice_willingness as i32;
+
+                // Check if should flee (player is close and longer, AND not willing to sacrifice)
                 let should_flee = dist_to_player < 4
-                    && player_length > enemy.length
+                    && length_diff > 0
+                    && !should_sacrifice_attack
                     && self.rng.range(0, 100) < escape_intelligence as i32;
 
                 // Check if should grab supply
@@ -416,8 +441,10 @@ impl Game {
                     && dist_to_supply < 8
                     && self.rng.range(0, 100) < supply_aggression as i32;
 
-                // Decide AI state
-                if should_flee {
+                // Decide AI state - sacrifice attack takes priority over normal chase
+                if should_sacrifice_attack {
+                    enemy.ai_state = EnemyAIState::Chasing; // Aggressively chase even when shorter
+                } else if should_flee {
                     enemy.ai_state = EnemyAIState::Fleeing;
                 } else if should_grab_supply {
                     enemy.ai_state = EnemyAIState::GrabbingSupply;
@@ -438,9 +465,11 @@ impl Game {
                 {
                     let should_boost = match enemy.ai_state {
                         // Boost when chasing and close to player
+                        // Allow boost when longer OR when willing to sacrifice
                         EnemyAIState::Chasing => {
                             dist_to_player < (ai_intelligence as i32 + 3)
-                                && enemy.length >= player_length
+                                && (enemy.length >= player_length
+                                    || self.rng.range(0, 100) < sacrifice_willingness as i32)
                         }
                         // Boost when fleeing from danger
                         EnemyAIState::Fleeing => dist_to_player < 4,
