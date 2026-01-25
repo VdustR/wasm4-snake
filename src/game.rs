@@ -461,8 +461,8 @@ impl Game {
                     && enemy.boost_timer == 0
                     && self.rng.range(0, 100) < slowdown_tendency as i32
                 {
-                    let dist_to_food = (enemy_head.x - food_pos.x).abs()
-                        + (enemy_head.y - food_pos.y).abs();
+                    let dist_to_food =
+                        (enemy_head.x - food_pos.x).abs() + (enemy_head.y - food_pos.y).abs();
 
                     // Slow down when very close to food or supply for precise control
                     let should_slow = (dist_to_food <= 2) || (dist_to_supply <= 2);
@@ -762,9 +762,8 @@ impl Game {
     fn update_supply(&mut self) {
         // Create a closure to check enemy collisions
         let enemies = &self.enemies;
-        let enemy_check = |pos: Point| -> bool {
-            enemies.enemies.iter().any(|e| e.alive && e.contains(pos))
-        };
+        let enemy_check =
+            |pos: Point| -> bool { enemies.enemies.iter().any(|e| e.alive && e.contains(pos)) };
 
         // Update spawning
         self.supply.update_spawning(
