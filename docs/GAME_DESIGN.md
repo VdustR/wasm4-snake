@@ -44,6 +44,15 @@ Combat-focused gameplay:
 
 ## Combat System (Battle Modes Only)
 
+### Movement-Based Damage
+
+Collision damage is **synchronized with movement speed**:
+- Damage is only dealt when a snake **attempts to move into** a collision
+- **No penetration**: Snakes stop at collision point instead of passing through
+- Slower movement = less frequent damage attempts
+- Slowdown ability effectively reduces damage taken during sustained collisions
+- This creates tactical depth: use slowdown when stuck in a collision to survive longer
+
 ### Collision Rules
 
 **Head-to-Head Collision (highest priority):**
@@ -174,9 +183,13 @@ Enemies use boost when:
 
 ### AI Slowdown Usage
 
-Enemies slow down for precise control when:
+Enemies slow down for precise control and damage reduction:
 - Very close to food (distance <= 2)
 - Very close to supply (distance <= 2)
+- **When in collision with player body** (damage reduction strategy)
+  - Higher difficulty AI uses this more reliably
+  - Slowdown Tendency directly affects how often AI will slow during collisions
+  - This exploits the movement-based damage system to survive longer in combat
 
 ## Scoring
 

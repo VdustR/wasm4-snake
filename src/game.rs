@@ -412,6 +412,7 @@ impl Game {
         let supply_pos = self.supply.position;
 
         let enemies_use_energy = difficulty.enemies_use_energy();
+        let max_len = difficulty.max_snake_length();
 
         // Update each enemy
         for i in 0..MAX_ENEMIES {
@@ -518,20 +519,31 @@ impl Game {
                     }
                 }
 
-                // Decide if should use slow (for precise control near targets)
+                // Decide if should use slow (for precise control or damage reduction)
                 let slowdown_tendency = difficulty.slowdown_tendency();
-                if enemies_use_energy
-                    && enemy.slow_timer == 0
-                    && enemy.boost_timer == 0
-                    && self.rng.range(0, 100) < slowdown_tendency as i32
-                {
-                    let dist_to_food =
-                        (enemy_head.x - food_pos.x).abs() + (enemy_head.y - food_pos.y).abs();
 
-                    // Slow down when very close to food or supply for precise control
-                    let should_slow = (dist_to_food <= 2) || (dist_to_supply <= 2);
-                    if should_slow {
-                        enemy.slow_timer = BOOST_DURATION / 2; // Shorter slow duration for AI
+                // Check if enemy head is colliding with player body (taking damage)
+                let in_collision = self.snake.body[1..self.snake.length].contains(&enemy_head);
+
+                // Force slowdown when in collision (damage reduction strategy)
+                // Higher difficulty AI will use this more reliably
+                if enemies_use_energy && enemy.slow_timer == 0 && enemy.boost_timer == 0 {
+                    if in_collision {
+                        // In collision: force slowdown based on slowdown_tendency
+                        // Higher difficulty = higher tendency = always slows down
+                        if self.rng.range(0, 100) < slowdown_tendency as i32 {
+                            enemy.slow_timer = BOOST_DURATION / 2;
+                            // Cancel any boost when taking damage
+                            enemy.boost_timer = 0;
+                        }
+                    } else if self.rng.range(0, 100) < slowdown_tendency as i32 {
+                        // Normal slowdown logic: near food or supply
+                        let dist_to_food =
+                            (enemy_head.x - food_pos.x).abs() + (enemy_head.y - food_pos.y).abs();
+                        let should_slow = (dist_to_food <= 2) || (dist_to_supply <= 2);
+                        if should_slow {
+                            enemy.slow_timer = BOOST_DURATION / 2;
+                        }
                     }
                 }
             }
@@ -584,15 +596,67 @@ impl Game {
                     }
                 }
 
-                enemy.update();
+                // Check if moving would collide with player body (before moving)
+                let next_head = enemy.peek_next_head();
+                let would_hit_player_body =
+                    self.snake.body[1..self.snake.length].contains(&next_head);
+                let would_hit_player_head = next_head == player_head;
+
+                if would_hit_player_head {
+                    // Head-to-head collision - don't move, apply damage
+                    enemy.just_moved = true;
+
+                    if difficulty == Difficulty::Classic {
+                        // Classic mode: player dies
+                        self.on_game_over();
+                        return;
+                    } else {
+                        // Battle mode: both shrink
+                        let player_survived = self.snake.shrink();
+                        let enemy_survived = self.enemies.enemies[i].shrink();
+                        self.play_head_clash_sound();
+                        self.trigger_collision_flash(next_head);
+                        if !player_survived {
+                            self.on_game_over();
+                            return;
+                        }
+                        if !enemy_survived {
+                            self.enemies.kill(i);
+                            self.score += 15;
+                        }
+                    }
+                } else if would_hit_player_body {
+                    // Don't move into player body, but apply damage here
+                    enemy.just_moved = true;
+
+                    // Apply damage: enemy shrinks, player grows
+                    if difficulty == Difficulty::Classic {
+                        // Classic mode: enemy dies
+                        self.enemies.kill(i);
+                        self.score += 50;
+                    } else {
+                        // Battle mode: enemy shrinks, player grows
+                        self.snake.try_grow_or_energy(max_len);
+                        self.play_enemy_hurt_sound();
+                        self.trigger_collision_flash(next_head);
+                        if !self.enemies.enemies[i].shrink() {
+                            self.enemies.kill(i);
+                        }
+                        self.score += 10;
+                    }
+                } else {
+                    enemy.update();
+                    enemy.just_moved = true;
+                }
+            } else {
+                enemy.just_moved = false;
             }
         }
 
-        // Check collisions between enemies (with new shrink rules)
+        // Check collisions between enemies (only for enemies that just moved)
         self.check_enemy_collisions_with_shrink();
 
         // Check if enemies ate food
-        let max_len = self.difficulty.max_snake_length();
         for i in 0..MAX_ENEMIES {
             let enemy = &mut self.enemies.enemies[i];
             if enemy.alive && enemy.head() == self.food.position {
@@ -603,12 +667,10 @@ impl Game {
                 self.food.respawn(&mut self.rng, &self.snake);
             }
         }
-
-        // Check player collision with enemies
-        self.check_player_enemy_collisions();
     }
 
     /// Check collisions between enemies with shrink rules
+    /// Only applies damage when an enemy that just moved causes a collision
     fn check_enemy_collisions_with_shrink(&mut self) {
         let max_len = self.difficulty.max_snake_length();
 
@@ -622,10 +684,17 @@ impl Game {
                     continue;
                 }
 
+                // Only check collision if at least one enemy just moved
+                let i_moved = self.enemies.enemies[i].just_moved;
+                let j_moved = self.enemies.enemies[j].just_moved;
+                if !i_moved && !j_moved {
+                    continue;
+                }
+
                 let head_i = self.enemies.enemies[i].head();
                 let head_j = self.enemies.enemies[j].head();
 
-                // Head-to-head collision
+                // Head-to-head collision: only if either just moved
                 if head_i == head_j {
                     // Both shrink
                     if !self.enemies.enemies[i].shrink() {
@@ -637,8 +706,9 @@ impl Game {
                     continue;
                 }
 
-                // Check if j's head hits i's body (only if both still alive with body)
-                if self.enemies.enemies[i].length > 1
+                // Check if j's head hits i's body (only if j just moved)
+                if j_moved
+                    && self.enemies.enemies[i].length > 1
                     && self.enemies.enemies[i].body[1..self.enemies.enemies[i].length]
                         .contains(&head_j)
                 {
@@ -649,8 +719,9 @@ impl Game {
                     }
                 }
 
-                // Check if i's head hits j's body (only if both still alive with body)
-                if self.enemies.enemies[j].length > 1
+                // Check if i's head hits j's body (only if i just moved)
+                if i_moved
+                    && self.enemies.enemies[j].length > 1
                     && self.enemies.enemies[j].body[1..self.enemies.enemies[j].length]
                         .contains(&head_i)
                 {
@@ -659,87 +730,6 @@ impl Game {
                     if !self.enemies.enemies[i].shrink() {
                         self.enemies.kill(i);
                     }
-                }
-            }
-        }
-    }
-
-    /// Check player-enemy collisions with mode-specific rules
-    fn check_player_enemy_collisions(&mut self) {
-        let player_head = self.snake.head();
-        let max_len = self.difficulty.max_snake_length();
-        let is_classic = self.difficulty == Difficulty::Classic;
-
-        for i in 0..MAX_ENEMIES {
-            if !self.enemies.enemies[i].alive {
-                continue;
-            }
-
-            let enemy_head = self.enemies.enemies[i].head();
-
-            // === 1. Head-to-head collision (highest priority) ===
-            if player_head == enemy_head {
-                if is_classic {
-                    // Classic mode: instant death
-                    self.on_game_over();
-                    return;
-                } else {
-                    // Battle mode: both shrink
-                    let player_survived = self.snake.shrink();
-                    let enemy_survived = self.enemies.enemies[i].shrink();
-
-                    self.play_head_clash_sound();
-                    self.trigger_collision_flash(player_head);
-
-                    if !player_survived {
-                        self.on_game_over();
-                        return;
-                    }
-                    if !enemy_survived {
-                        self.enemies.kill(i);
-                        self.score += 15; // Sacrifice kill bonus
-                    }
-                    continue; // Skip other collision checks for this enemy
-                }
-            }
-
-            // === 2. Player head hits enemy body (not head) ===
-            if self.enemies.enemies[i].length > 1
-                && self.enemies.enemies[i].body[1..self.enemies.enemies[i].length]
-                    .contains(&player_head)
-            {
-                if is_classic {
-                    // Classic mode: instant death
-                    self.on_game_over();
-                    return;
-                } else {
-                    // Other modes: player shrinks, enemy grows
-                    self.enemies.enemies[i].try_grow_or_energy(max_len);
-                    self.play_player_hurt_sound();
-                    self.trigger_collision_flash(player_head);
-                    if !self.snake.shrink() {
-                        self.on_game_over();
-                        return;
-                    }
-                    self.score = self.score.saturating_sub(10);
-                }
-            }
-
-            // === 3. Enemy head hits player body ===
-            if self.snake.body[1..self.snake.length].contains(&enemy_head) {
-                if is_classic {
-                    // Classic mode: enemy dies
-                    self.enemies.kill(i);
-                    self.score += 50;
-                } else {
-                    // Other modes: enemy shrinks, player grows
-                    self.snake.try_grow_or_energy(max_len);
-                    self.play_enemy_hurt_sound();
-                    self.trigger_collision_flash(enemy_head);
-                    if !self.enemies.enemies[i].shrink() {
-                        self.enemies.kill(i);
-                    }
-                    self.score += 10;
                 }
             }
         }
@@ -939,13 +929,77 @@ impl Game {
 
     /// Update game logic (movement, collision, scoring)
     fn update_game_logic(&mut self) {
-        self.snake.update();
+        let next_head = self.snake.peek_next_head();
+        let is_classic = self.difficulty == Difficulty::Classic;
+        let max_len = self.difficulty.max_snake_length();
+
+        // Check if moving would cause collision with enemies (before moving)
+        let mut should_move = true;
+        let mut game_over = false;
+
+        for i in 0..MAX_ENEMIES {
+            if !self.enemies.enemies[i].alive {
+                continue;
+            }
+
+            let enemy_head = self.enemies.enemies[i].head();
+
+            // Head-to-head collision check
+            if next_head == enemy_head {
+                should_move = false; // Don't move into collision
+                if is_classic {
+                    game_over = true;
+                } else {
+                    let player_survived = self.snake.shrink();
+                    let enemy_survived = self.enemies.enemies[i].shrink();
+                    self.play_head_clash_sound();
+                    self.trigger_collision_flash(next_head);
+                    if !player_survived {
+                        game_over = true;
+                    }
+                    if !enemy_survived {
+                        self.enemies.kill(i);
+                        self.score += 15;
+                    }
+                }
+                break;
+            }
+
+            // Player head vs enemy body collision check
+            if self.enemies.enemies[i].length > 1
+                && self.enemies.enemies[i].body[1..self.enemies.enemies[i].length]
+                    .contains(&next_head)
+            {
+                should_move = false; // Don't move into collision
+                if is_classic {
+                    game_over = true;
+                } else {
+                    self.enemies.enemies[i].try_grow_or_energy(max_len);
+                    self.play_player_hurt_sound();
+                    self.trigger_collision_flash(next_head);
+                    if !self.snake.shrink() {
+                        game_over = true;
+                    }
+                    self.score = self.score.saturating_sub(10);
+                }
+                break;
+            }
+        }
+
+        if game_over {
+            self.on_game_over();
+            return;
+        }
+
+        // Only move if no collision detected
+        if should_move {
+            self.snake.update();
+        }
 
         // Check if snake ate food
         if self.snake.head() == self.food.position {
             let growth = self.food.size.growth_amount();
             let score = self.food.size.score_value();
-            let max_len = self.difficulty.max_snake_length();
 
             for _ in 0..growth {
                 self.snake.try_grow_or_energy(max_len);
@@ -958,11 +1012,11 @@ impl Game {
             self.play_eat_sound();
         }
 
-        // Check self collision
-        if self.snake.collides_with_self() {
+        // Check self collision (only if we moved)
+        if should_move && self.snake.collides_with_self() {
             // Classic mode: instant death
             // Other modes: shrink (death only at min length)
-            if self.difficulty == Difficulty::Classic || !self.snake.shrink() {
+            if is_classic || !self.snake.shrink() {
                 self.on_game_over();
             }
         }

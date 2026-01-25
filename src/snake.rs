@@ -87,6 +87,15 @@ impl Snake {
         self.body[0]
     }
 
+    /// Peek at where the head would be after moving (without actually moving)
+    pub fn peek_next_head(&self) -> Point {
+        let delta = self.direction.delta();
+        Point::new(
+            (self.body[0].x + delta.x).rem_euclid(GRID_SIZE),
+            (self.body[0].y + delta.y).rem_euclid(GRID_SIZE),
+        )
+    }
+
     /// Move the snake one step in the current direction
     pub fn update(&mut self) {
         // Move each segment to the position of the segment in front

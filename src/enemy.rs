@@ -29,6 +29,7 @@ pub struct EnemySnake {
     pub energy: u8,         // Energy for speed boost
     pub boost_timer: u16,   // Remaining boost frames
     pub slow_timer: u16,    // Remaining slow frames
+    pub just_moved: bool,   // True if this enemy moved this frame
 }
 
 impl EnemySnake {
@@ -51,6 +52,7 @@ impl EnemySnake {
             energy: 0,
             boost_timer: 0,
             slow_timer: 0,
+            just_moved: false,
         }
     }
 
@@ -68,12 +70,22 @@ impl EnemySnake {
             energy: 0,
             boost_timer: 0,
             slow_timer: 0,
+            just_moved: false,
         }
     }
 
     /// Get the head position
     pub fn head(&self) -> Point {
         self.body[0]
+    }
+
+    /// Peek at where the head would be after moving (without actually moving)
+    pub fn peek_next_head(&self) -> Point {
+        let delta = self.direction.delta();
+        Point::new(
+            (self.body[0].x + delta.x).rem_euclid(GRID_SIZE),
+            (self.body[0].y + delta.y).rem_euclid(GRID_SIZE),
+        )
     }
 
     /// Move the snake in the current direction
