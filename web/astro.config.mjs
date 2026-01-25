@@ -6,8 +6,8 @@ import icon from 'astro-icon';
 const base = process.env.ASTRO_BASE || '/wasm4-snake';
 
 export default defineConfig({
-  // Site URL for GitHub Pages (update with your username)
-  site: 'https://example.github.io',
+  // Site URL for canonical URLs and OG images
+  site: 'https://vdustr.dev',
   base: base,
   build: {
     // Output to dist/ folder
