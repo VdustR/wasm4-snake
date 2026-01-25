@@ -44,11 +44,25 @@ Combat-focused gameplay:
 
 ## Combat System (Battle Modes Only)
 
-### Body Attack Rules
+### Collision Rules
 
-**Player vs Enemy:**
-- Your head hits enemy body: you shrink -1, enemy grows +1, score -10
-- Enemy head hits your body: enemy shrinks -1, you grow +1, score +10
+**Head-to-Head Collision (highest priority):**
+- Both snakes shrink -1
+- If enemy dies from this: score +15 (sacrifice kill bonus)
+- Visual: Cross flash at collision point
+- Audio: Head clash sound effect
+
+**Player Head vs Enemy Body:**
+- Player shrinks -1, enemy grows +1
+- Score -10
+- Visual: Cross flash at collision point
+- Audio: Player hurt sound effect
+
+**Enemy Head vs Player Body:**
+- Enemy shrinks -1, player grows +1
+- Score +10
+- Visual: Cross flash at collision point
+- Audio: Enemy hurt sound effect
 
 **Enemy vs Enemy:**
 - Head-to-head collision: both enemies shrink -1
@@ -123,8 +137,9 @@ Three sizes with different growth values:
 | Slowdown Tendency | 20% | 40% | 60% | 80% |
 | Energy Efficiency | 30% | 50% | 70% | 90% |
 | Sacrifice Willingness | 0% | 15% | 40% | 70% |
+| Head Clash Willingness | 0% | 10% | 25% | 45% |
 
-### Sacrifice Willingness (New)
+### Sacrifice Willingness
 
 Higher difficulty AI will attack even when shorter than the player:
 - **Noob**: Always flees when shorter
@@ -136,6 +151,19 @@ Safety constraints:
 - Won't sacrifice when at minimum length + 1
 - Won't attack if player is 4+ segments longer
 - Only attempts when close to player (distance < 5)
+
+### Head Clash Willingness
+
+Higher difficulty AI will attempt head-to-head collisions:
+- **Noob**: Always avoids head-to-head
+- **Normal**: Occasionally risks it (10%)
+- **Hell**: Sometimes attempts head clash (25%)
+- **Nightmare**: Frequently attempts mutual damage (45%)
+
+Conditions for head clash attempt:
+- Very close to player (distance <= 2)
+- Has length to spare (> minimum length)
+- Player is near death or not much longer
 
 ### AI Boost Usage
 
@@ -157,7 +185,9 @@ Enemies slow down for precise control when:
 - Medium food: +25
 - Large food: +50
 - Enemy shrinks by hitting your body: +10
-- Your head hits enemy: -10
+- Your head hits enemy body: -10
+- Head-to-head collision (neutral): 0
+- Head-to-head kills enemy: +15 (sacrifice kill bonus)
 
 ### High Scores
 - Separate high score per difficulty level (5 slots)

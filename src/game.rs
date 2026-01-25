@@ -188,6 +188,18 @@ impl Difficulty {
             Difficulty::Nightmare => 70, // Very aggressive, frequently sacrifices length
         }
     }
+
+    /// Probability (0-100) that AI will attempt head-to-head collision.
+    /// Higher difficulty = more willing to trade damage for potential kills.
+    pub const fn head_clash_willingness(&self) -> u8 {
+        match self {
+            Difficulty::Classic => 0,
+            Difficulty::Noob => 0,       // Always avoids head-to-head
+            Difficulty::Normal => 10,    // Occasionally risks it
+            Difficulty::Hell => 25,      // Sometimes attempts head clash
+            Difficulty::Nightmare => 45, // Frequently attempts mutual damage
+        }
+    }
 }
 
 /// Boost duration in frames (2 seconds at 60 FPS)
@@ -227,6 +239,9 @@ pub struct Game {
     boost_cooldown: u16, // Cooldown until next boost
     slow_timer: u16,     // Remaining slow frames
     slow_cooldown: u16,  // Cooldown until next slow
+    // Collision flash effect
+    collision_flash_pos: Option<Point>, // Flash position (None = no flash)
+    collision_flash_timer: u8,          // Remaining flash frames
 }
 
 impl Game {
@@ -261,6 +276,8 @@ impl Game {
             boost_cooldown: 0,
             slow_timer: 0,
             slow_cooldown: 0,
+            collision_flash_pos: None,
+            collision_flash_timer: 0,
         };
 
         game.load_high_scores();
@@ -280,6 +297,8 @@ impl Game {
         self.boost_cooldown = 0;
         self.slow_timer = 0;
         self.slow_cooldown = 0;
+        self.collision_flash_pos = None;
+        self.collision_flash_timer = 0;
         self.state = GameState::Playing;
     }
 
@@ -302,6 +321,14 @@ impl Game {
                 // Update boost/slow timers (non-Classic only)
                 if self.difficulty != Difficulty::Classic {
                     self.update_ability_timers();
+                }
+
+                // Update collision flash timer
+                if self.collision_flash_timer > 0 {
+                    self.collision_flash_timer -= 1;
+                    if self.collision_flash_timer == 0 {
+                        self.collision_flash_pos = None;
+                    }
                 }
 
                 // Calculate effective move interval based on boost/slow state
@@ -430,10 +457,18 @@ impl Game {
                     && enemy.length > MIN_SNAKE_LENGTH + 1 // Have length to spare
                     && self.rng.range(0, 100) < sacrifice_willingness as i32;
 
-                // Check if should flee (player is close and longer, AND not willing to sacrifice)
+                // Check if AI should attempt head-to-head collision
+                // Only when: very close, has length to spare, player is near death or not much longer
+                let should_head_clash = dist_to_player <= 2
+                    && enemy.length > MIN_SNAKE_LENGTH
+                    && (player_length <= MIN_SNAKE_LENGTH + 1 || length_diff <= 0)
+                    && self.rng.range(0, 100) < difficulty.head_clash_willingness() as i32;
+
+                // Check if should flee (player is close and longer, AND not willing to sacrifice/clash)
                 let should_flee = dist_to_player < 4
                     && length_diff > 0
                     && !should_sacrifice_attack
+                    && !should_head_clash
                     && self.rng.range(0, 100) < escape_intelligence as i32;
 
                 // Check if should grab supply
@@ -441,9 +476,9 @@ impl Game {
                     && dist_to_supply < 8
                     && self.rng.range(0, 100) < supply_aggression as i32;
 
-                // Decide AI state - sacrifice attack takes priority over normal chase
-                if should_sacrifice_attack {
-                    enemy.ai_state = EnemyAIState::Chasing; // Aggressively chase even when shorter
+                // Decide AI state - sacrifice/head-clash attacks take priority
+                if should_sacrifice_attack || should_head_clash {
+                    enemy.ai_state = EnemyAIState::Chasing; // Aggressively chase for attack
                 } else if should_flee {
                     enemy.ai_state = EnemyAIState::Fleeing;
                 } else if should_grab_supply {
@@ -642,8 +677,37 @@ impl Game {
 
             let enemy_head = self.enemies.enemies[i].head();
 
-            // Player head hits enemy (head or body)
-            if self.enemies.enemies[i].contains(player_head) {
+            // === 1. Head-to-head collision (highest priority) ===
+            if player_head == enemy_head {
+                if is_classic {
+                    // Classic mode: instant death
+                    self.on_game_over();
+                    return;
+                } else {
+                    // Battle mode: both shrink
+                    let player_survived = self.snake.shrink();
+                    let enemy_survived = self.enemies.enemies[i].shrink();
+
+                    self.play_head_clash_sound();
+                    self.trigger_collision_flash(player_head);
+
+                    if !player_survived {
+                        self.on_game_over();
+                        return;
+                    }
+                    if !enemy_survived {
+                        self.enemies.kill(i);
+                        self.score += 15; // Sacrifice kill bonus
+                    }
+                    continue; // Skip other collision checks for this enemy
+                }
+            }
+
+            // === 2. Player head hits enemy body (not head) ===
+            if self.enemies.enemies[i].length > 1
+                && self.enemies.enemies[i].body[1..self.enemies.enemies[i].length]
+                    .contains(&player_head)
+            {
                 if is_classic {
                     // Classic mode: instant death
                     self.on_game_over();
@@ -651,6 +715,8 @@ impl Game {
                 } else {
                     // Other modes: player shrinks, enemy grows
                     self.enemies.enemies[i].try_grow_or_energy(max_len);
+                    self.play_player_hurt_sound();
+                    self.trigger_collision_flash(player_head);
                     if !self.snake.shrink() {
                         self.on_game_over();
                         return;
@@ -659,7 +725,7 @@ impl Game {
                 }
             }
 
-            // Enemy head hits player body (not head)
+            // === 3. Enemy head hits player body ===
             if self.snake.body[1..self.snake.length].contains(&enemy_head) {
                 if is_classic {
                     // Classic mode: enemy dies
@@ -668,6 +734,8 @@ impl Game {
                 } else {
                     // Other modes: enemy shrinks, player grows
                     self.snake.try_grow_or_energy(max_len);
+                    self.play_enemy_hurt_sound();
+                    self.trigger_collision_flash(enemy_head);
                     if !self.enemies.enemies[i].shrink() {
                         self.enemies.kill(i);
                     }
@@ -985,6 +1053,9 @@ impl Game {
 
         // Draw energy indicator (non-Classic only)
         self.draw_energy_indicator();
+
+        // Draw collision flash effect (if active)
+        self.draw_collision_flash();
     }
 
     /// Draw enemy snakes
@@ -1199,6 +1270,51 @@ impl Game {
         if self.sfx_enabled {
             // Descending sound for slowdown
             tone(440 | (220 << 16), 15, 50, TONE_TRIANGLE);
+        }
+    }
+
+    /// Head-to-head collision sound - both snakes take damage
+    fn play_head_clash_sound(&self) {
+        if self.sfx_enabled {
+            // Low clash sound with slight rise
+            tone(200 | (300 << 16), 6 | (4 << 8), 70, TONE_NOISE);
+        }
+    }
+
+    /// Player hurt sound - hit by enemy
+    fn play_player_hurt_sound(&self) {
+        if self.sfx_enabled {
+            // Descending tone indicates damage taken
+            tone(330 | (110 << 16), 5 | (10 << 8), 60, TONE_TRIANGLE);
+        }
+    }
+
+    /// Enemy hurt sound - successful defense/counterattack
+    fn play_enemy_hurt_sound(&self) {
+        if self.sfx_enabled {
+            // Rising tone indicates successful hit
+            tone(220 | (440 << 16), 3 | (5 << 8), 50, TONE_PULSE1);
+        }
+    }
+
+    /// Trigger collision flash effect at the given position
+    fn trigger_collision_flash(&mut self, pos: Point) {
+        self.collision_flash_pos = Some(pos);
+        self.collision_flash_timer = 12; // ~0.2 seconds at 60 FPS
+    }
+
+    /// Draw collision flash effect (cross shape)
+    fn draw_collision_flash(&self) {
+        if let Some(pos) = self.collision_flash_pos {
+            // Blink every 3 frames
+            if (self.collision_flash_timer / 3).is_multiple_of(2) {
+                unsafe { *DRAW_COLORS = 0x40 }; // Yellow (color 4)
+                let cx = pos.x * CELL_SIZE as i32 + 4;
+                let cy = pos.y * CELL_SIZE as i32 + 4;
+                // Cross flash
+                hline(cx - 3, cy, 7);
+                vline(cx, cy - 3, 7);
+            }
         }
     }
 
