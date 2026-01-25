@@ -52,6 +52,7 @@ src/
 ├── game.rs     # Game state machine & main loop
 ├── snake.rs    # Snake logic (player & base)
 ├── food.rs     # Food system (3 sizes)
+├── supply.rs   # Supply pack system (energy pickups)
 ├── rng.rs      # Random number generator
 ├── enemy.rs    # Enemy snake system
 ├── ai.rs       # AI pathfinding (BFS)
@@ -60,18 +61,58 @@ src/
 
 ## Game Rules
 
+### Controls
+- **D-pad**: Move snake (Up/Down/Left/Right)
+- **X button**: Activate speed boost (costs 1 energy, non-Classic only)
+- **Z button**: Activate slowdown (free, cancels boost, non-Classic only)
+
+### Energy System
+- Maximum energy: 5 units
+- Initial energy: 3 units
+- Gain energy by:
+  - Collecting supply packs (+1)
+  - Eating food when at max length (+1)
+
+### Speed Boost (X button)
+- Duration: 2 seconds
+- Cooldown: 5 seconds
+- Cost: 1 energy
+- Visual: Wave flash effect across body
+- Audio: Music plays at 2x speed and pitch
+
+### Slowdown (Z button)
+- Duration: 2 seconds
+- Cooldown: 5 seconds
+- Cost: Free
+- Visual: Head-only flash effect
+- Special: Immediately cancels active boost
+
+### Supply Packs
+- Spawn every 10 seconds (50% chance)
+- Despawn after 15 seconds if not collected
+- Visual: Blinking yellow/green diamond
+- Effect: +1 energy
+- Note: Not available in Classic mode
+
 ### Classic Mode
 - Collision = instant death (traditional snake)
 - No length limit
-- Free speed control
+- No boost/slowdown abilities
+- No supply packs
+- No enemies
 
 ### Battle Modes (Noob, Normal, Hell, Nightmare)
 - Collision = shrink (death only at min length 3)
 - Length limit varies by difficulty
-- Energy  system:
-  - Speed up costs 1 energy
-  - Gain energy by eating food at max length
+- Energy system enabled
+- Supply packs enabled
 - Body attack: head hits body = attacker shrinks, victim grows
+
+### AI Behavior (Battle Modes)
+- States: Idle, Chasing, Seeking, GrabbingSupply, Fleeing
+- Higher difficulty = more aggressive AI
+- AI can use boost when chasing or fleeing
+- AI can use slowdown for precise control near targets
 
 ## Code Conventions
 

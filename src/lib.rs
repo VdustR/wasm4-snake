@@ -16,6 +16,7 @@ fn panic_handler(_info: &core::panic::PanicInfo) -> ! {
 mod food;
 mod rng;
 mod snake;
+mod supply;
 
 // WASM-4 specific modules (only for WASM target)
 #[cfg(target_arch = "wasm32")]

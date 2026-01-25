@@ -7,6 +7,15 @@ import { Icon } from 'astro-icon/components';
 <Layout title="WASM-4 Snake - Classic 8-bit Arcade Game">
   <main class="container">
     <header class="hero">
+      <a
+        href="https://github.com/VdustR/wasm4-snake"
+        target="_blank"
+        rel="noopener"
+        class="github-link"
+        aria-label="View source on GitHub"
+      >
+        <Icon name="pixelarticons:github" class="github-icon" />
+      </a>
       <h1>WASM-4 Snake</h1>
       <p class="tagline">Classic arcade action on the fantasy console</p>
     </header>
@@ -44,6 +53,14 @@ import { Icon } from 'astro-icon/components';
         <li>
           <span class="feature-icon"><Icon name="pixelarticons:gamepad" /></span>
           <span>Classic snake gameplay with screen wrapping</span>
+        </li>
+        <li>
+          <span class="feature-icon"><Icon name="pixelarticons:zap" /></span>
+          <span>Energy system &amp; power-up supply packs</span>
+        </li>
+        <li>
+          <span class="feature-icon"><Icon name="pixelarticons:speed-fast" /></span>
+          <span>Speed boost &amp; slowdown mechanics</span>
         </li>
         <li>
           <span class="feature-icon"><Icon name="pixelarticons:music" /></span>
@@ -105,6 +122,30 @@ import { Icon } from 'astro-icon/components';
   .hero {
     text-align: center;
     margin-bottom: var(--spacing-xl);
+    padding-top: var(--spacing-xl);
+    position: relative;
+  }
+
+  .github-link {
+    position: absolute;
+    top: var(--spacing-md);
+    right: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: var(--spacing-xs);
+    color: var(--color-text-muted);
+    transition: color 0.2s ease;
+  }
+
+  .github-link:hover {
+    color: var(--color-yellow);
+    text-decoration: none;
+  }
+
+  .github-icon {
+    width: 32px;
+    height: 32px;
   }
 
   .tagline {

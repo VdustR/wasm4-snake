@@ -9,9 +9,11 @@ pub const MAX_ENEMY_LENGTH: usize = 30;
 /// Enemy AI states
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum EnemyAIState {
-    Idle,    // Random movement
-    Chasing, // Chasing player
-    Seeking, // Seeking food
+    Idle,           // Random movement
+    Chasing,        // Chasing player
+    Seeking,        // Seeking food
+    GrabbingSupply, // Going for supply pack
+    Fleeing,        // Running away from player
 }
 
 /// An enemy snake
@@ -25,6 +27,8 @@ pub struct EnemySnake {
     pub move_timer: u8,     // Frames until next move
     pub decision_timer: u8, // Frames until next AI decision
     pub energy: u8,         // Energy for speed boost
+    pub boost_timer: u16,   // Remaining boost frames
+    pub slow_timer: u16,    // Remaining slow frames
 }
 
 impl EnemySnake {
@@ -45,6 +49,8 @@ impl EnemySnake {
             move_timer: 0,
             decision_timer: 0,
             energy: 0,
+            boost_timer: 0,
+            slow_timer: 0,
         }
     }
 
@@ -60,6 +66,8 @@ impl EnemySnake {
             move_timer: 0,
             decision_timer: 0,
             energy: 0,
+            boost_timer: 0,
+            slow_timer: 0,
         }
     }
 

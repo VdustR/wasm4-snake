@@ -4,8 +4,10 @@ pub const GRID_SIZE: i32 = 20;
 pub const MAX_SNAKE_LENGTH: usize = 50;
 /// Minimum snake length (initial state, death threshold)
 pub const MIN_SNAKE_LENGTH: usize = 3;
-/// Maximum energy for speed boost
-pub const MAX_ENERGY: u8 = 10;
+/// Maximum energy for speed boost (5 = can boost 5 times)
+pub const MAX_ENERGY: u8 = 5;
+/// Initial energy when game starts
+pub const INITIAL_ENERGY: u8 = 3;
 
 /// A point on the game grid
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
@@ -76,7 +78,7 @@ impl Snake {
             body,
             length: MIN_SNAKE_LENGTH,
             direction: Direction::Right,
-            energy: 0,
+            energy: INITIAL_ENERGY,
         }
     }
 
@@ -325,6 +327,12 @@ mod tests {
     #[test]
     fn test_snake_energy() {
         let mut snake = Snake::new();
+        assert_eq!(snake.energy, INITIAL_ENERGY);
+
+        // Use all initial energy
+        for _ in 0..INITIAL_ENERGY {
+            assert!(snake.use_energy());
+        }
         assert_eq!(snake.energy, 0);
 
         // Cannot use energy when empty
@@ -341,10 +349,10 @@ mod tests {
         let mut snake = Snake::new();
         let max_length = 5;
 
-        // Should grow when below max
+        // Should grow when below max (energy unchanged)
         assert!(snake.try_grow_or_energy(max_length));
         assert_eq!(snake.length, 4);
-        assert_eq!(snake.energy, 0);
+        assert_eq!(snake.energy, INITIAL_ENERGY);
 
         // Grow to max
         snake.try_grow_or_energy(max_length);
@@ -353,7 +361,7 @@ mod tests {
         // At max length, should gain energy instead
         assert!(!snake.try_grow_or_energy(max_length));
         assert_eq!(snake.length, 5); // Length unchanged
-        assert_eq!(snake.energy, 1); // Energy gained
+        assert_eq!(snake.energy, INITIAL_ENERGY + 1); // Energy gained
 
         // Can gain up to MAX_ENERGY
         for _ in 0..15 {

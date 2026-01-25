@@ -66,62 +66,6 @@ pub fn draw_difficulty_select(selected: u8, high_scores: &[u32; 5]) {
     text(b"UP/DOWN: Select", 24, 145);
 }
 
-/// Draw the pause menu overlay
-pub fn draw_pause_menu(selected: u8, music_enabled: bool, sfx_enabled: bool) {
-    // Dark overlay
-    unsafe { *DRAW_COLORS = 0x11 }; // Fill with color 1 (darkest)
-    rect(20, 40, 120, 85);
-
-    // Border
-    unsafe { *DRAW_COLORS = 0x04 };
-    rect(22, 42, 116, 81);
-    unsafe { *DRAW_COLORS = 0x11 };
-    rect(24, 44, 112, 77);
-
-    // Title
-    unsafe { *DRAW_COLORS = 0x04 };
-    text(b"PAUSED", 56, 48);
-
-    // Options: Continue, Music, SFX, Quit
-    let base_y = 64;
-    let line_height = 12;
-
-    // Option 0: Continue
-    draw_menu_option(0, selected, b"Continue", base_y);
-
-    // Option 1: Music toggle
-    if music_enabled {
-        draw_menu_option(1, selected, b"Music: ON", base_y + line_height);
-    } else {
-        draw_menu_option(1, selected, b"Music: OFF", base_y + line_height);
-    }
-
-    // Option 2: SFX toggle
-    if sfx_enabled {
-        draw_menu_option(2, selected, b"SFX: ON", base_y + line_height * 2);
-    } else {
-        draw_menu_option(2, selected, b"SFX: OFF", base_y + line_height * 2);
-    }
-
-    // Option 3: Quit
-    draw_menu_option(3, selected, b"Quit", base_y + line_height * 3);
-}
-
-/// Helper to draw a menu option
-fn draw_menu_option(index: u8, selected: u8, label: &[u8], y: i32) {
-    if index == selected {
-        unsafe { *DRAW_COLORS = 0x04 }; // Yellow highlight
-        text(b">", 32, y);
-    }
-
-    if index == selected {
-        unsafe { *DRAW_COLORS = 0x04 };
-    } else {
-        unsafe { *DRAW_COLORS = 0x03 };
-    }
-    text(label, 44, y);
-}
-
 /// Draw the game over screen with options
 pub fn draw_game_over_menu(score: u32, high_score: u32, selected: u8) {
     // Overlay box

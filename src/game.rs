@@ -3,7 +3,8 @@ use crate::enemy::{EnemyAIState, EnemyManager, MAX_ENEMIES};
 use crate::food::{Food, FoodSize};
 use crate::menu;
 use crate::rng::Rng;
-use crate::snake::{Direction, Point, Snake};
+use crate::snake::{Direction, Point, Snake, GRID_SIZE};
+use crate::supply::Supply;
 use crate::wasm4::*;
 
 /// Size of each cell in pixels
@@ -12,12 +13,6 @@ const CELL_SIZE: u32 = 8;
 const BASE_MOVE_INTERVAL: u32 = 15;
 /// Frames between music notes (60 FPS / 8 = 7.5 notes/sec)
 const MUSIC_INTERVAL: u32 = 8;
-/// Minimum speed (max frames per move)
-const MIN_SPEED: u32 = 30;
-/// Maximum speed (min frames per move)
-const MAX_SPEED: u32 = 5;
-/// Speed change amount per button press
-const SPEED_STEP: u32 = 2;
 /// AI decision interval (frames)
 const AI_DECISION_INTERVAL: u8 = 30;
 
@@ -35,7 +30,6 @@ pub enum GameState {
     MainMenu,
     DifficultySelect,
     Playing,
-    Paused,
     GameOver,
 }
 
@@ -138,12 +132,66 @@ impl Difficulty {
     pub const fn enemies_use_energy(&self) -> bool {
         !matches!(self, Difficulty::Classic)
     }
+
+    /// Probability (0-100) that AI will go for supply pack
+    pub const fn supply_aggression(&self) -> u8 {
+        match self {
+            Difficulty::Classic => 0,
+            Difficulty::Noob => 10,
+            Difficulty::Normal => 30,
+            Difficulty::Hell => 50,
+            Difficulty::Nightmare => 75,
+        }
+    }
+
+    /// Probability (0-100) that AI will flee when in danger
+    pub const fn escape_intelligence(&self) -> u8 {
+        match self {
+            Difficulty::Classic => 0,
+            Difficulty::Noob => 20,
+            Difficulty::Normal => 40,
+            Difficulty::Hell => 60,
+            Difficulty::Nightmare => 80,
+        }
+    }
+
+    /// Probability (0-100) that AI will use energy efficiently
+    pub const fn energy_efficiency(&self) -> u8 {
+        match self {
+            Difficulty::Classic => 0,
+            Difficulty::Noob => 30,
+            Difficulty::Normal => 50,
+            Difficulty::Hell => 70,
+            Difficulty::Nightmare => 90,
+        }
+    }
+
+    /// Probability (0-100) that AI will use slowdown ability
+    pub const fn slowdown_tendency(&self) -> u8 {
+        match self {
+            Difficulty::Classic => 0,
+            Difficulty::Noob => 20,
+            Difficulty::Normal => 40,
+            Difficulty::Hell => 60,
+            Difficulty::Nightmare => 80,
+        }
+    }
 }
+
+/// Boost duration in frames (2 seconds at 60 FPS)
+const BOOST_DURATION: u16 = 120;
+/// Boost/slow cooldown in frames (5 seconds at 60 FPS)
+const ABILITY_COOLDOWN: u16 = 300;
+/// Boosted move interval (faster than normal)
+const BOOSTED_MOVE_INTERVAL: u32 = 8;
+/// Slowed move interval multiplier (2x slower)
+const SLOW_MULTIPLIER: u32 = 2;
 
 /// Main game struct
 pub struct Game {
     snake: Snake,
     food: Food,
+    supply: Supply,
     enemies: EnemyManager,
     pathfinder: PathFinder,
     rng: Rng,
@@ -162,6 +210,11 @@ pub struct Game {
     // Sound settings
     music_enabled: bool,
     sfx_enabled: bool,
+    // Boost/Slow timers (non-Classic only)
+    boost_timer: u16,    // Remaining boost frames
+    boost_cooldown: u16, // Cooldown until next boost
+    slow_timer: u16,     // Remaining slow frames
+    slow_cooldown: u16,  // Cooldown until next slow
 }
 
 impl Game {
@@ -174,6 +227,7 @@ impl Game {
         let mut game = Self {
             snake,
             food,
+            supply: Supply::new(),
             enemies: EnemyManager::new(),
             pathfinder: PathFinder::new(),
             rng,
@@ -191,6 +245,10 @@ impl Game {
             obstacles_count: 0,
             music_enabled: true,
             sfx_enabled: true,
+            boost_timer: 0,
+            boost_cooldown: 0,
+            slow_timer: 0,
+            slow_cooldown: 0,
         };
 
         game.load_high_scores();
@@ -201,10 +259,15 @@ impl Game {
     fn reset_game(&mut self) {
         self.snake = Snake::new();
         self.food.respawn(&mut self.rng, &self.snake);
+        self.supply.reset();
         self.enemies.reset();
         self.score = 0;
         self.move_interval = BASE_MOVE_INTERVAL;
         self.music_index = 0;
+        self.boost_timer = 0;
+        self.boost_cooldown = 0;
+        self.slow_timer = 0;
+        self.slow_cooldown = 0;
         self.state = GameState::Playing;
     }
 
@@ -224,21 +287,30 @@ impl Game {
                 self.draw_difficulty_select();
             }
             GameState::Playing => {
+                // Update boost/slow timers (non-Classic only)
+                if self.difficulty != Difficulty::Classic {
+                    self.update_ability_timers();
+                }
+
+                // Calculate effective move interval based on boost/slow state
+                let effective_interval = self.get_effective_move_interval();
+
                 // Update player snake
-                if self.frame_count.is_multiple_of(self.move_interval) {
+                if self.frame_count.is_multiple_of(effective_interval) {
                     self.update_game_logic();
                 }
 
                 // Update enemies
                 self.update_enemies();
 
+                // Update supply (Classic mode has no supply)
+                if self.difficulty != Difficulty::Classic {
+                    self.update_supply();
+                }
+
                 // Play background music
                 self.play_music();
                 self.draw_game();
-            }
-            GameState::Paused => {
-                self.draw_game();
-                self.draw_pause_menu();
             }
             GameState::GameOver => {
                 self.draw_game();
@@ -291,8 +363,14 @@ impl Game {
         let enemy_speed = difficulty.enemy_speed();
         let chase_ratio = difficulty.chase_ratio();
         let ai_intelligence = difficulty.ai_intelligence();
+        let supply_aggression = difficulty.supply_aggression();
+        let escape_intelligence = difficulty.escape_intelligence();
+        let energy_efficiency = difficulty.energy_efficiency();
         let food_pos = self.food.position;
         let player_head = self.snake.head();
+        let player_length = self.snake.length;
+        let supply_active = self.supply.active;
+        let supply_pos = self.supply.position;
 
         let enemies_use_energy = difficulty.enemies_use_energy();
 
@@ -303,6 +381,14 @@ impl Game {
                 continue;
             }
 
+            // Update boost/slow timers
+            if enemy.boost_timer > 0 {
+                enemy.boost_timer -= 1;
+            }
+            if enemy.slow_timer > 0 {
+                enemy.slow_timer -= 1;
+            }
+
             // Update move timer
             enemy.move_timer = enemy.move_timer.wrapping_add(1);
 
@@ -311,43 +397,108 @@ impl Game {
             if enemy.decision_timer >= AI_DECISION_INTERVAL {
                 enemy.decision_timer = 0;
 
-                // Decide behavior based on difficulty
-                let roll = self.rng.range(0, 100) as u8;
-                if roll < chase_ratio {
-                    enemy.ai_state = EnemyAIState::Chasing;
+                let enemy_head = enemy.head();
+                let dist_to_player =
+                    (enemy_head.x - player_head.x).abs() + (enemy_head.y - player_head.y).abs();
+                let dist_to_supply = if supply_active {
+                    (enemy_head.x - supply_pos.x).abs() + (enemy_head.y - supply_pos.y).abs()
                 } else {
-                    enemy.ai_state = EnemyAIState::Seeking;
-                }
-            }
+                    100 // Far away when no supply
+                };
 
-            // Check if enemy should use energy for speed boost
-            let mut use_energy_boost = false;
-            if enemies_use_energy && enemy.energy > 0 {
-                // Use energy when chasing and player is close, or when in danger
-                if enemy.ai_state == EnemyAIState::Chasing {
-                    let dist = (enemy.head().x - player_head.x).abs()
-                        + (enemy.head().y - player_head.y).abs();
-                    // Use energy boost when close to player (based on difficulty intelligence)
-                    if dist < (ai_intelligence as i32 + 3) {
-                        use_energy_boost = enemy.use_energy();
+                // Check if should flee (player is close and longer)
+                let should_flee = dist_to_player < 4
+                    && player_length > enemy.length
+                    && self.rng.range(0, 100) < escape_intelligence as i32;
+
+                // Check if should grab supply
+                let should_grab_supply = supply_active
+                    && dist_to_supply < 8
+                    && self.rng.range(0, 100) < supply_aggression as i32;
+
+                // Decide AI state
+                if should_flee {
+                    enemy.ai_state = EnemyAIState::Fleeing;
+                } else if should_grab_supply {
+                    enemy.ai_state = EnemyAIState::GrabbingSupply;
+                } else {
+                    let roll = self.rng.range(0, 100) as u8;
+                    if roll < chase_ratio {
+                        enemy.ai_state = EnemyAIState::Chasing;
+                    } else {
+                        enemy.ai_state = EnemyAIState::Seeking;
+                    }
+                }
+
+                // Decide if should use boost (when has energy)
+                if enemies_use_energy
+                    && enemy.energy > 0
+                    && enemy.boost_timer == 0
+                    && self.rng.range(0, 100) < energy_efficiency as i32
+                {
+                    let should_boost = match enemy.ai_state {
+                        // Boost when chasing and close to player
+                        EnemyAIState::Chasing => {
+                            dist_to_player < (ai_intelligence as i32 + 3)
+                                && enemy.length >= player_length
+                        }
+                        // Boost when fleeing from danger
+                        EnemyAIState::Fleeing => dist_to_player < 4,
+                        // Boost when close to supply (within 5 cells)
+                        EnemyAIState::GrabbingSupply => dist_to_supply < 5,
+                        _ => false,
+                    };
+
+                    if should_boost && enemy.use_energy() {
+                        enemy.boost_timer = BOOST_DURATION;
+                    }
+                }
+
+                // Decide if should use slow (for precise control near targets)
+                let slowdown_tendency = difficulty.slowdown_tendency();
+                if enemies_use_energy
+                    && enemy.slow_timer == 0
+                    && enemy.boost_timer == 0
+                    && self.rng.range(0, 100) < slowdown_tendency as i32
+                {
+                    let dist_to_food = (enemy_head.x - food_pos.x).abs()
+                        + (enemy_head.y - food_pos.y).abs();
+
+                    // Slow down when very close to food or supply for precise control
+                    let should_slow = (dist_to_food <= 2) || (dist_to_supply <= 2);
+                    if should_slow {
+                        enemy.slow_timer = BOOST_DURATION / 2; // Shorter slow duration for AI
                     }
                 }
             }
 
-            // Move enemy at its speed (faster if using energy)
-            let effective_speed = if use_energy_boost {
-                enemy_speed / 2 // Double speed when using energy
+            // Calculate effective speed based on boost/slow state
+            let base_speed = enemy_speed as u16;
+            let effective_speed = if enemy.boost_timer > 0 {
+                (base_speed / 2).max(4) // Faster when boosted
+            } else if enemy.slow_timer > 0 {
+                base_speed * 2 // Slower when slowed
             } else {
-                enemy_speed
+                base_speed
             };
 
-            if enemy.move_timer >= effective_speed {
+            if enemy.move_timer as u16 >= effective_speed {
                 enemy.move_timer = 0;
 
                 // Get target based on AI state
                 let target = match enemy.ai_state {
                     EnemyAIState::Chasing => player_head,
                     EnemyAIState::Seeking | EnemyAIState::Idle => food_pos,
+                    EnemyAIState::GrabbingSupply => supply_pos,
+                    EnemyAIState::Fleeing => {
+                        // Flee in opposite direction from player
+                        let dx = enemy.head().x - player_head.x;
+                        let dy = enemy.head().y - player_head.y;
+                        Point::new(
+                            (enemy.head().x + dx.signum() * 5).rem_euclid(GRID_SIZE),
+                            (enemy.head().y + dy.signum() * 5).rem_euclid(GRID_SIZE),
+                        )
+                    }
                 };
 
                 // Find direction using pathfinding
@@ -553,68 +704,32 @@ impl Game {
                     self.snake.set_direction(Direction::Right);
                 }
 
-                // Speed controls (speed up consumes energy)
-                if just_pressed & BUTTON_1 != 0 {
-                    // Speed up requires energy (except in Classic mode which has free speed control)
-                    let can_speed_up = if self.difficulty == Difficulty::Classic {
-                        true
-                    } else {
-                        self.snake.use_energy()
-                    };
+                // Boost/Slow abilities (non-Classic only)
+                if self.difficulty != Difficulty::Classic {
+                    // BUTTON_1 (X) = Boost: costs 1 energy, 2s duration, 5s cooldown
+                    if just_pressed & BUTTON_1 != 0
+                        && self.boost_cooldown == 0
+                        && self.boost_timer == 0
+                        && self.slow_timer == 0
+                        && self.snake.use_energy()
+                    {
+                        self.boost_timer = BOOST_DURATION;
+                        self.play_boost_sound();
+                    }
 
-                    if can_speed_up && self.move_interval > MAX_SPEED {
-                        self.move_interval = self.move_interval.saturating_sub(SPEED_STEP);
-                        if self.move_interval < MAX_SPEED {
-                            self.move_interval = MAX_SPEED;
+                    // BUTTON_2 (Z) = Slow: free, 2s duration, 5s cooldown, cancels boost
+                    if just_pressed & BUTTON_2 != 0
+                        && self.slow_cooldown == 0
+                        && self.slow_timer == 0
+                    {
+                        // Cancel any active boost
+                        if self.boost_timer > 0 {
+                            self.boost_timer = 0;
+                            self.boost_cooldown = ABILITY_COOLDOWN;
                         }
+                        self.slow_timer = BOOST_DURATION;
+                        self.play_slow_sound();
                     }
-                } else if just_pressed & BUTTON_2 != 0 {
-                    // Speed down is always free
-                    if self.move_interval < MIN_SPEED {
-                        self.move_interval = self.move_interval.saturating_add(SPEED_STEP);
-                        if self.move_interval > MIN_SPEED {
-                            self.move_interval = MIN_SPEED;
-                        }
-                    }
-                }
-
-                // Pause with both buttons held
-                if gamepad & (BUTTON_1 | BUTTON_2) == (BUTTON_1 | BUTTON_2)
-                    && self.prev_gamepad & (BUTTON_1 | BUTTON_2) != (BUTTON_1 | BUTTON_2)
-                {
-                    self.state = GameState::Paused;
-                    self.menu_selection = 0;
-                    self.play_menu_sound();
-                }
-            }
-            GameState::Paused => {
-                if just_pressed & BUTTON_UP != 0 {
-                    if self.menu_selection > 0 {
-                        self.menu_selection -= 1;
-                        self.play_menu_sound();
-                    }
-                } else if just_pressed & BUTTON_DOWN != 0 {
-                    if self.menu_selection < 3 {
-                        self.menu_selection += 1;
-                        self.play_menu_sound();
-                    }
-                } else if just_pressed & BUTTON_1 != 0 {
-                    match self.menu_selection {
-                        0 => self.state = GameState::Playing, // Continue
-                        1 => {
-                            self.music_enabled = !self.music_enabled;
-                            self.save_high_scores(); // Save settings
-                        }
-                        2 => {
-                            self.sfx_enabled = !self.sfx_enabled;
-                            self.save_high_scores(); // Save settings
-                        }
-                        _ => self.state = GameState::MainMenu, // Quit
-                    }
-                    self.play_menu_sound();
-                } else if just_pressed & BUTTON_2 != 0 {
-                    self.state = GameState::Playing;
-                    self.play_menu_sound();
                 }
             }
             GameState::GameOver => {
@@ -641,6 +756,89 @@ impl Game {
         }
 
         self.prev_gamepad = gamepad;
+    }
+
+    /// Update supply spawning and collection
+    fn update_supply(&mut self) {
+        // Create a closure to check enemy collisions
+        let enemies = &self.enemies;
+        let enemy_check = |pos: Point| -> bool {
+            enemies.enemies.iter().any(|e| e.alive && e.contains(pos))
+        };
+
+        // Update spawning
+        self.supply.update_spawning(
+            &mut self.rng,
+            &self.snake.body,
+            self.snake.length,
+            self.food.position,
+            enemy_check,
+        );
+
+        // Check if player collected supply
+        if self.supply.is_at(self.snake.head()) {
+            self.supply.collect();
+            // Add 1 energy (up to max)
+            if self.snake.energy < crate::snake::MAX_ENERGY {
+                self.snake.energy += 1;
+            }
+            self.play_supply_sound();
+        }
+
+        // Check if enemies collected supply
+        for i in 0..MAX_ENEMIES {
+            let enemy = &mut self.enemies.enemies[i];
+            if enemy.alive && self.supply.is_at(enemy.head()) {
+                self.supply.collect();
+                if enemy.energy < crate::snake::MAX_ENERGY {
+                    enemy.energy += 1;
+                }
+                break; // Only one can collect per frame
+            }
+        }
+    }
+
+    /// Update boost and slow ability timers
+    fn update_ability_timers(&mut self) {
+        // Update boost timer
+        if self.boost_timer > 0 {
+            self.boost_timer -= 1;
+            if self.boost_timer == 0 {
+                self.boost_cooldown = ABILITY_COOLDOWN;
+            }
+        }
+
+        // Update boost cooldown
+        if self.boost_cooldown > 0 {
+            self.boost_cooldown -= 1;
+        }
+
+        // Update slow timer
+        if self.slow_timer > 0 {
+            self.slow_timer -= 1;
+            if self.slow_timer == 0 {
+                self.slow_cooldown = ABILITY_COOLDOWN;
+            }
+        }
+
+        // Update slow cooldown
+        if self.slow_cooldown > 0 {
+            self.slow_cooldown -= 1;
+        }
+    }
+
+    /// Get the effective move interval based on boost/slow state
+    fn get_effective_move_interval(&self) -> u32 {
+        if self.boost_timer > 0 {
+            // Boosted: faster movement
+            BOOSTED_MOVE_INTERVAL
+        } else if self.slow_timer > 0 {
+            // Slowed: half speed
+            self.move_interval * SLOW_MULTIPLIER
+        } else {
+            // Normal speed
+            self.move_interval
+        }
     }
 
     /// Update game logic (movement, collision, scoring)
@@ -690,10 +888,24 @@ impl Game {
 
     /// Draw the game (snake, food, enemies, score)
     fn draw_game(&self) {
-        // Draw player snake body
+        // Draw player snake body with boost/slow flash effects
         for i in 1..self.snake.length {
             let p = self.snake.body[i];
-            unsafe { *DRAW_COLORS = 0x32 }; // Fill=3, Stroke=2
+
+            // Boost: wave flash effect (head to tail)
+            let body_visible = if self.boost_timer > 0 {
+                // Wave pattern: (frame/4 + index) % 8 < 4
+                ((self.frame_count / 4) as usize + i) % 8 < 4
+            } else {
+                true
+            };
+
+            if body_visible {
+                unsafe { *DRAW_COLORS = 0x32 }; // Fill=3, Stroke=2
+            } else {
+                unsafe { *DRAW_COLORS = 0x42 }; // Brighter flash (yellow)
+            }
+
             rect(
                 p.x * CELL_SIZE as i32,
                 p.y * CELL_SIZE as i32,
@@ -704,7 +916,23 @@ impl Game {
 
         // Draw player snake head
         let head = self.snake.head();
-        unsafe { *DRAW_COLORS = 0x43 }; // Fill=4, Stroke=3
+
+        // Slow: head-only flash effect
+        let head_bright = if self.slow_timer > 0 {
+            (self.frame_count / 6).is_multiple_of(2)
+        } else if self.boost_timer > 0 {
+            // During boost, head also flashes
+            (self.frame_count / 4) % 8 < 4
+        } else {
+            true
+        };
+
+        if head_bright {
+            unsafe { *DRAW_COLORS = 0x43 }; // Fill=4, Stroke=3
+        } else {
+            unsafe { *DRAW_COLORS = 0x23 }; // Dimmer flash
+        }
+
         rect(
             head.x * CELL_SIZE as i32,
             head.y * CELL_SIZE as i32,
@@ -717,6 +945,9 @@ impl Game {
 
         // Draw food (with size indication)
         self.draw_food();
+
+        // Draw supply (if active)
+        self.draw_supply();
 
         // Draw score
         self.draw_score();
@@ -792,6 +1023,32 @@ impl Game {
         );
     }
 
+    /// Draw supply pack with blinking effect (yellow/green alternating)
+    fn draw_supply(&self) {
+        if !self.supply.active {
+            return;
+        }
+
+        let pos = self.supply.position;
+        let phase = self.supply.flash_phase(self.frame_count);
+
+        // Alternate between yellow and green
+        if phase == 0 {
+            unsafe { *DRAW_COLORS = 0x40 }; // Yellow
+        } else {
+            unsafe { *DRAW_COLORS = 0x30 }; // Green
+        }
+
+        // Draw as a small diamond shape (4x4 centered in cell)
+        let cx = pos.x * CELL_SIZE as i32 + 4;
+        let cy = pos.y * CELL_SIZE as i32 + 4;
+
+        // Draw diamond pattern
+        rect(cx - 1, cy - 2, 2, 1); // Top
+        rect(cx - 2, cy - 1, 4, 2); // Middle
+        rect(cx - 1, cy + 1, 2, 1); // Bottom
+    }
+
     /// Draw the score in top-left corner
     fn draw_score(&self) {
         unsafe { *DRAW_COLORS = 0x04 };
@@ -861,11 +1118,6 @@ impl Game {
         menu::draw_difficulty_select(self.menu_selection, &self.high_scores);
     }
 
-    /// Draw pause menu
-    fn draw_pause_menu(&self) {
-        menu::draw_pause_menu(self.menu_selection, self.music_enabled, self.sfx_enabled);
-    }
-
     /// Draw game over screen
     fn draw_game_over(&self) {
         let diff_idx = self.difficulty.to_index() as usize;
@@ -898,6 +1150,30 @@ impl Game {
         }
     }
 
+    /// Play a sound when collecting supply
+    fn play_supply_sound(&self) {
+        if self.sfx_enabled {
+            // Higher pitched, sparkly sound for energy pickup
+            tone(880 | (1320 << 16), 8, 60, TONE_PULSE1);
+        }
+    }
+
+    /// Play a sound when activating boost
+    fn play_boost_sound(&self) {
+        if self.sfx_enabled {
+            // Rising whoosh sound for speed boost
+            tone(330 | (880 << 16), 15, 70, TONE_NOISE);
+        }
+    }
+
+    /// Play a sound when activating slow
+    fn play_slow_sound(&self) {
+        if self.sfx_enabled {
+            // Descending sound for slowdown
+            tone(440 | (220 << 16), 15, 50, TONE_TRIANGLE);
+        }
+    }
+
     /// Play a sound on game over
     fn play_game_over_sound(&self) {
         if self.sfx_enabled {
@@ -919,18 +1195,26 @@ impl Game {
         }
     }
 
-    /// Play background music
+    /// Play background music (faster when boosted)
     fn play_music(&mut self) {
         if !self.music_enabled {
             return;
         }
-        if !self.frame_count.is_multiple_of(MUSIC_INTERVAL) {
+
+        // When boosted: double tempo (half interval) and higher pitch
+        let (interval, freq_mult) = if self.boost_timer > 0 {
+            (MUSIC_INTERVAL / 2, 2u32)
+        } else {
+            (MUSIC_INTERVAL, 1u32)
+        };
+
+        if !self.frame_count.is_multiple_of(interval) {
             return;
         }
 
         let freq = MELODY[self.music_index];
         if freq > 0 {
-            tone(freq, MUSIC_INTERVAL - 2, 30, TONE_PULSE2);
+            tone(freq * freq_mult, interval - 2, 30, TONE_PULSE2);
         }
 
         self.music_index = (self.music_index + 1) % MELODY.len();
@@ -1031,8 +1315,8 @@ mod tests {
     #[test]
     fn test_game_state_transitions() {
         assert_ne!(GameState::MainMenu, GameState::Playing);
-        assert_ne!(GameState::Playing, GameState::Paused);
-        assert_ne!(GameState::Paused, GameState::GameOver);
+        assert_ne!(GameState::Playing, GameState::GameOver);
+        assert_ne!(GameState::MainMenu, GameState::GameOver);
     }
 
     #[test]
