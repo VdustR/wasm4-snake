@@ -9,7 +9,6 @@ This document is the single source of truth for all game mechanics and rules.
 | Arrow Keys / D-pad | Move snake / Navigate menu |
 | X (Button 1) | Select / Speed Boost (costs 1 energy in battle modes) |
 | Z (Button 2) | Back / Slowdown (free, cancels boost) |
-| X + Z together | Pause game (access sound settings) |
 
 ## Game Modes
 
@@ -222,4 +221,4 @@ Enemies slow down for precise control and damage reduction:
 
 - Play area: 20x20 grid (8 pixels per cell)
 - Status bar at bottom: Score, Energy indicators
-- Menu screens: Title, difficulty select, pause, game over
+- Menu screens: Title, settings, difficulty select, game over

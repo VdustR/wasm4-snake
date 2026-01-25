@@ -69,7 +69,10 @@ Documentation hierarchy:
 | File | Purpose | Update when... |
 |------|---------|----------------|
 | `docs/GAME_DESIGN.md` | Complete game mechanics | Game rules change |
+| `docs/CHEAT.md` | Cheat mode features | Cheat features change |
 | `README.md` | Public overview | Features/setup change |
 | `docs/ARCHITECTURE.md` | Technical design | Architecture decisions |
 | `docs/DEVELOPMENT.md` | Development commands | Tools/workflow change |
 | `CLAUDE.md` | AI development context | Code structure changes |
+
+Note: Cheat mode exists but is intentionally not documented in public-facing files (README, GAME_DESIGN).

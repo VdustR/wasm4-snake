@@ -1,22 +1,146 @@
 use crate::wasm4::*;
 
-/// Draw the main menu screen
-pub fn draw_main_menu() {
+/// Draw the main menu screen with animated snake
+pub fn draw_main_menu(selected: u8, frame: u32) {
     // Title
     unsafe { *DRAW_COLORS = 0x04 }; // Yellow
-    text(b"SNAKE", 56, 30);
+    text(b"SNAKE", 56, 20);
 
-    // Subtitle
-    unsafe { *DRAW_COLORS = 0x03 }; // Green
-    text(b"WASM-4 Edition", 32, 50);
+    // Draw animated snake eating food
+    draw_menu_animation(frame);
 
-    // Press to start
-    unsafe { *DRAW_COLORS = 0x02 }; // Purple (blinking effect via caller)
-    text(b"Press X to Start", 24, 100);
+    // Menu options
+    let options: [&[u8]; 2] = [b"Start", b"Settings"];
+    for (i, option) in options.iter().enumerate() {
+        let y = 95 + i as i32 * 16;
 
-    // Credits
+        // Selection indicator
+        if i as u8 == selected {
+            unsafe { *DRAW_COLORS = 0x04 }; // Yellow highlight
+            text(b">", 48, y);
+        }
+
+        // Option text
+        if i as u8 == selected {
+            unsafe { *DRAW_COLORS = 0x04 }; // Yellow for selected
+        } else {
+            unsafe { *DRAW_COLORS = 0x03 }; // Green for others
+        }
+        text(*option, 60, y);
+    }
+
+    // Controls hint
     unsafe { *DRAW_COLORS = 0x02 };
-    text(b"v1.0", 68, 145);
+    text(b"X: Select", 52, 145);
+}
+
+/// Draw animated snake eating food on menu
+fn draw_menu_animation(frame: u32) {
+    // Animation cycle: snake moves right, eats food, pauses, resets
+    // 90 frames per cycle (~1.5 seconds)
+    let cycle_frame = frame % 90;
+
+    // Snake head position (moves from left to right)
+    let base_x: i32 = 48;
+    let y: i32 = 55;
+    let food_x: i32 = 96;
+
+    // Phase 1 (0-50): Snake approaches food
+    // Phase 2 (50-60): Eating pause (snake at food position)
+    // Phase 3 (60-90): Reset animation
+    let head_x = if cycle_frame < 50 {
+        // Moving towards food
+        base_x + (cycle_frame as i32 * (food_x - base_x) / 50)
+    } else if cycle_frame < 60 {
+        // Eating pause - stay at food position
+        food_x
+    } else {
+        // Reset phase - quick return
+        let reset_progress = (cycle_frame - 60) as i32;
+        food_x - (reset_progress * (food_x - base_x) / 30)
+    };
+
+    // Food visible: only in approach phase before snake reaches it
+    let food_visible = cycle_frame < 45;
+
+    // Draw food (small square with blink when about to be eaten)
+    if food_visible {
+        let blink = cycle_frame > 40 && (frame / 3).is_multiple_of(2);
+        if !blink {
+            unsafe { *DRAW_COLORS = 0x40 }; // Yellow
+            rect(food_x + 2, y + 2, 5, 5);
+        }
+    }
+
+    // Draw snake body (3 segments behind head, wrapping effect)
+    unsafe { *DRAW_COLORS = 0x30 }; // Green
+    for i in 1..4 {
+        let seg_x = head_x - i * 8;
+        if seg_x >= base_x - 16 && seg_x < 160 {
+            rect(seg_x, y, 7, 8);
+        }
+    }
+
+    // Draw snake head with "mouth" effect when eating
+    let eating = (45..55).contains(&cycle_frame);
+    if eating && (frame / 4).is_multiple_of(2) {
+        // Open mouth animation
+        unsafe { *DRAW_COLORS = 0x43 }; // Yellow fill
+        rect(head_x, y, 8, 3);
+        rect(head_x, y + 5, 8, 3);
+    } else {
+        unsafe { *DRAW_COLORS = 0x43 }; // Yellow fill, green stroke
+        rect(head_x, y, 8, 8);
+    }
+
+    // Draw eye
+    unsafe { *DRAW_COLORS = 0x10 }; // Dark
+    rect(head_x + 5, y + 2, 2, 2);
+}
+
+/// Draw the settings menu
+pub fn draw_settings_menu(selected: u8, music_on: bool, sfx_on: bool, cheat_on: bool) {
+    // Title
+    unsafe { *DRAW_COLORS = 0x04 }; // Yellow
+    text(b"SETTINGS", 48, 20);
+
+    // Settings options
+    let options: [(&[u8], bool); 3] = [
+        (b"Music", music_on),
+        (b"Sound FX", sfx_on),
+        (b"Cheat Mode", cheat_on),
+    ];
+
+    for (i, (label, enabled)) in options.iter().enumerate() {
+        let y = 50 + i as i32 * 20;
+
+        // Selection indicator
+        if i as u8 == selected {
+            unsafe { *DRAW_COLORS = 0x04 }; // Yellow highlight
+            text(b">", 16, y);
+        }
+
+        // Label
+        if i as u8 == selected {
+            unsafe { *DRAW_COLORS = 0x04 };
+        } else {
+            unsafe { *DRAW_COLORS = 0x03 };
+        }
+        text(*label, 28, y);
+
+        // ON/OFF indicator
+        if *enabled {
+            unsafe { *DRAW_COLORS = 0x03 }; // Green for ON
+            text(b"ON", 120, y);
+        } else {
+            unsafe { *DRAW_COLORS = 0x02 }; // Purple for OFF
+            text(b"OFF", 116, y);
+        }
+    }
+
+    // Controls hint
+    unsafe { *DRAW_COLORS = 0x02 };
+    text(b"X:Toggle  Z:Back", 24, 145);
 }
 
 /// Draw the difficulty selection screen

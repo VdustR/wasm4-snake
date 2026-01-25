@@ -28,6 +28,7 @@ const MELODY: [u32; 16] = [
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum GameState {
     MainMenu,
+    Settings,
     DifficultySelect,
     Playing,
     GameOver,
@@ -234,6 +235,8 @@ pub struct Game {
     // Sound settings
     music_enabled: bool,
     sfx_enabled: bool,
+    // Cheat mode (unlimited boost, no cooldown)
+    cheat_enabled: bool,
     // Boost/Slow timers (non-Classic only)
     boost_timer: u16,    // Remaining boost frames
     boost_cooldown: u16, // Cooldown until next boost
@@ -272,6 +275,7 @@ impl Game {
             obstacles_count: 0,
             music_enabled: true,
             sfx_enabled: true,
+            cheat_enabled: false,
             boost_timer: 0,
             boost_cooldown: 0,
             slow_timer: 0,
@@ -312,7 +316,12 @@ impl Game {
 
         match self.state {
             GameState::MainMenu => {
+                self.play_menu_music();
                 self.draw_main_menu();
+            }
+            GameState::Settings => {
+                self.play_menu_music();
+                self.draw_settings_menu();
             }
             GameState::DifficultySelect => {
                 self.draw_difficulty_select();
@@ -752,9 +761,53 @@ impl Game {
 
         match self.state {
             GameState::MainMenu => {
-                if just_pressed & BUTTON_1 != 0 {
-                    self.state = GameState::DifficultySelect;
-                    self.menu_selection = self.difficulty.to_index();
+                if just_pressed & BUTTON_UP != 0 {
+                    if self.menu_selection > 0 {
+                        self.menu_selection -= 1;
+                        self.play_menu_sound();
+                    }
+                } else if just_pressed & BUTTON_DOWN != 0 {
+                    if self.menu_selection < 1 {
+                        self.menu_selection += 1;
+                        self.play_menu_sound();
+                    }
+                } else if just_pressed & BUTTON_1 != 0 {
+                    if self.menu_selection == 0 {
+                        // Start
+                        self.state = GameState::DifficultySelect;
+                        self.menu_selection = self.difficulty.to_index();
+                    } else {
+                        // Settings
+                        self.state = GameState::Settings;
+                        self.menu_selection = 0;
+                    }
+                    self.play_menu_sound();
+                }
+            }
+            GameState::Settings => {
+                if just_pressed & BUTTON_UP != 0 {
+                    if self.menu_selection > 0 {
+                        self.menu_selection -= 1;
+                        self.play_menu_sound();
+                    }
+                } else if just_pressed & BUTTON_DOWN != 0 {
+                    if self.menu_selection < 2 {
+                        self.menu_selection += 1;
+                        self.play_menu_sound();
+                    }
+                } else if just_pressed & BUTTON_1 != 0 {
+                    // Toggle setting
+                    match self.menu_selection {
+                        0 => self.music_enabled = !self.music_enabled,
+                        1 => self.sfx_enabled = !self.sfx_enabled,
+                        _ => self.cheat_enabled = !self.cheat_enabled,
+                    }
+                    self.save_settings();
+                    self.play_menu_sound();
+                } else if just_pressed & BUTTON_2 != 0 {
+                    // Back to main menu
+                    self.state = GameState::MainMenu;
+                    self.menu_selection = 0;
                     self.play_menu_sound();
                 }
             }
@@ -776,6 +829,7 @@ impl Game {
                     self.play_start_sound();
                 } else if just_pressed & BUTTON_2 != 0 {
                     self.state = GameState::MainMenu;
+                    self.menu_selection = 0;
                     self.play_menu_sound();
                 }
             }
@@ -791,28 +845,42 @@ impl Game {
                     self.snake.set_direction(Direction::Right);
                 }
 
+                // Cheat: A+B to grow
+                if self.cheat_enabled
+                    && (just_pressed & (BUTTON_1 | BUTTON_2)) != 0
+                    && (gamepad & BUTTON_1) != 0
+                    && (gamepad & BUTTON_2) != 0
+                {
+                    self.snake.grow();
+                    self.play_eat_sound();
+                }
                 // Boost/Slow abilities (non-Classic only)
-                if self.difficulty != Difficulty::Classic {
-                    // BUTTON_1 (X) = Boost: costs 1 energy, 2s duration, 5s cooldown
-                    if just_pressed & BUTTON_1 != 0
-                        && self.boost_cooldown == 0
-                        && self.boost_timer == 0
-                        && self.slow_timer == 0
-                        && self.snake.use_energy()
+                else if self.difficulty != Difficulty::Classic {
+                    // BUTTON_1 (X) = Boost
+                    if just_pressed & BUTTON_1 != 0 && self.boost_timer == 0 && self.slow_timer == 0
                     {
-                        self.boost_timer = BOOST_DURATION;
-                        self.play_boost_sound();
+                        let can_boost = if self.cheat_enabled {
+                            true
+                        } else {
+                            self.boost_cooldown == 0 && self.snake.use_energy()
+                        };
+
+                        if can_boost {
+                            self.boost_timer = BOOST_DURATION;
+                            self.play_boost_sound();
+                        }
                     }
 
-                    // BUTTON_2 (Z) = Slow: free, 2s duration, 5s cooldown, cancels boost
+                    // BUTTON_2 (Z) = Slow
                     if just_pressed & BUTTON_2 != 0
                         && self.slow_cooldown == 0
                         && self.slow_timer == 0
                     {
-                        // Cancel any active boost
                         if self.boost_timer > 0 {
                             self.boost_timer = 0;
-                            self.boost_cooldown = ABILITY_COOLDOWN;
+                            if !self.cheat_enabled {
+                                self.boost_cooldown = ABILITY_COOLDOWN;
+                            }
                         }
                         self.slow_timer = BOOST_DURATION;
                         self.play_slow_sound();
@@ -836,6 +904,7 @@ impl Game {
                         self.reset_game();
                     } else {
                         self.state = GameState::MainMenu;
+                        self.menu_selection = 0;
                     }
                     self.play_menu_sound();
                 }
@@ -889,13 +958,13 @@ impl Game {
         // Update boost timer
         if self.boost_timer > 0 {
             self.boost_timer -= 1;
-            if self.boost_timer == 0 {
+            if self.boost_timer == 0 && !self.cheat_enabled {
                 self.boost_cooldown = ABILITY_COOLDOWN;
             }
         }
 
-        // Update boost cooldown
-        if self.boost_cooldown > 0 {
+        // Update boost cooldown (skip in cheat mode)
+        if self.boost_cooldown > 0 && !self.cheat_enabled {
             self.boost_cooldown -= 1;
         }
 
@@ -1229,14 +1298,17 @@ impl Game {
 
     /// Draw main menu
     fn draw_main_menu(&self) {
-        menu::draw_main_menu();
+        menu::draw_main_menu(self.menu_selection, self.frame_count);
+    }
 
-        if (self.blink_timer / 30).is_multiple_of(2) {
-            unsafe { *DRAW_COLORS = 0x03 };
-        } else {
-            unsafe { *DRAW_COLORS = 0x02 };
-        }
-        text(b"Press X to Start", 24, 100);
+    /// Draw settings menu
+    fn draw_settings_menu(&self) {
+        menu::draw_settings_menu(
+            self.menu_selection,
+            self.music_enabled,
+            self.sfx_enabled,
+            self.cheat_enabled,
+        );
     }
 
     /// Draw difficulty select
@@ -1391,8 +1463,31 @@ impl Game {
         self.music_index = (self.music_index + 1) % MELODY.len();
     }
 
+    /// Play menu background music (slower, softer version)
+    fn play_menu_music(&mut self) {
+        if !self.music_enabled {
+            return;
+        }
+
+        // Slower tempo for menu (16 frames between notes)
+        let interval = MUSIC_INTERVAL * 2;
+
+        if !self.frame_count.is_multiple_of(interval) {
+            return;
+        }
+
+        let freq = MELODY[self.music_index];
+        if freq > 0 {
+            // Lower octave and softer volume for ambient feel
+            tone(freq / 2, interval - 4, 20, TONE_TRIANGLE);
+        }
+
+        self.music_index = (self.music_index + 1) % MELODY.len();
+    }
+
     /// Load high scores and settings from persistent storage
-    /// Format v2: [SNAK][ver][scores x5][flags][checksum] = 27 bytes
+    /// Format v3: [SNAK][ver][scores x5][flags][checksum] = 27 bytes
+    /// Flags: bit0=music, bit1=sfx, bit2=cheat
     fn load_high_scores(&mut self) {
         let mut buf = [0u8; 27];
         let read = unsafe { diskr(buf.as_mut_ptr(), 27) };
@@ -1414,8 +1509,8 @@ impl Game {
                         ]);
                     }
                 }
-            } else if version == 2 && read >= 27 {
-                // New format with sound settings
+            } else if (version == 2 || version == 3) && read >= 27 {
+                // v2/v3 format with settings
                 let checksum = buf[5..26].iter().fold(0u8, |acc, &b| acc.wrapping_add(b));
                 if checksum == buf[26] {
                     for i in 0..5 {
@@ -1427,22 +1522,33 @@ impl Game {
                             buf[offset + 3],
                         ]);
                     }
-                    // Load sound settings from flags byte
+                    // Load settings from flags byte
                     let flags = buf[25];
                     self.music_enabled = (flags & 0x01) != 0;
                     self.sfx_enabled = (flags & 0x02) != 0;
+                    self.cheat_enabled = (flags & 0x04) != 0;
                 }
             }
         }
     }
 
     /// Save high scores and settings to persistent storage
-    /// Format v2: [SNAK][ver][scores x5][flags][checksum] = 27 bytes
+    /// Format v3: [SNAK][ver][scores x5][flags][checksum] = 27 bytes
     fn save_high_scores(&self) {
+        self.save_data();
+    }
+
+    /// Save settings only (without updating high scores)
+    fn save_settings(&self) {
+        self.save_data();
+    }
+
+    /// Internal: save all data to persistent storage
+    fn save_data(&self) {
         let mut buf = [0u8; 27];
 
         buf[0..4].copy_from_slice(b"SNAK");
-        buf[4] = 2; // Version 2
+        buf[4] = 3; // Version 3
 
         for i in 0..5 {
             let offset = 5 + i * 4;
@@ -1450,13 +1556,16 @@ impl Game {
             buf[offset..offset + 4].copy_from_slice(&bytes);
         }
 
-        // Sound settings flags
+        // Settings flags: bit0=music, bit1=sfx, bit2=cheat
         let mut flags: u8 = 0;
         if self.music_enabled {
             flags |= 0x01;
         }
         if self.sfx_enabled {
             flags |= 0x02;
+        }
+        if self.cheat_enabled {
+            flags |= 0x04;
         }
         buf[25] = flags;
 
