@@ -16,9 +16,9 @@ pre-commit:
     web-lint-staged:
       root: "web/"
       glob: "web/**/*.{js,ts,astro,json,md,css}"
-      run: cd web && pnpm exec lint-staged
+      run: pnpm exec lint-staged
 
     web-typecheck:
       root: "web/"
       glob: "web/**/*.{ts,astro}"
-      run: cd web && pnpm exec astro check
+      run: pnpm exec astro check

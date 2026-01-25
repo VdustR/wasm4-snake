@@ -32,16 +32,30 @@ import { Icon } from 'astro-icon/components';
           <span>Move Up</span>
         </div>
         <div class="control-item">
-          <span class="control-key"><Icon name="pixelarticons:arrow-down" class="arrow-icon" /></span>
+          <span class="control-key"
+            ><Icon name="pixelarticons:arrow-down" class="arrow-icon" /></span
+          >
           <span>Move Down</span>
         </div>
         <div class="control-item">
-          <span class="control-key"><Icon name="pixelarticons:arrow-left" class="arrow-icon" /></span>
+          <span class="control-key"
+            ><Icon name="pixelarticons:arrow-left" class="arrow-icon" /></span
+          >
           <span>Move Left</span>
         </div>
         <div class="control-item">
-          <span class="control-key"><Icon name="pixelarticons:arrow-right" class="arrow-icon" /></span>
+          <span class="control-key"
+            ><Icon name="pixelarticons:arrow-right" class="arrow-icon" /></span
+          >
           <span>Move Right</span>
+        </div>
+        <div class="control-item">
+          <span class="control-key text-key">X</span>
+          <span>Speed Boost</span>
+        </div>
+        <div class="control-item">
+          <span class="control-key text-key">Z</span>
+          <span>Slowdown</span>
         </div>
       </div>
       <p class="controls-note">Press any key to restart when game over</p>
@@ -91,12 +105,7 @@ import { Icon } from 'astro-icon/components';
     <section class="cta-section" aria-labelledby="source-heading">
       <h3 id="source-heading">Open Source</h3>
       <p>View the source code and contribute on GitHub</p>
-      <a
-        href="https://github.com/VdustR/wasm4-snake"
-        target="_blank"
-        rel="noopener"
-        class="btn"
-      >
+      <a href="https://github.com/VdustR/wasm4-snake" target="_blank" rel="noopener" class="btn">
         View Source
       </a>
     </section>
@@ -108,8 +117,7 @@ import { Icon } from 'astro-icon/components';
       <a href="https://github.com/VdustR" target="_blank" rel="noopener">VdustR</a>
     </p>
     <p>
-      Built with <a href="https://wasm4.org" target="_blank" rel="noopener">WASM-4</a> |
-      MIT License
+      Built with <a href="https://wasm4.org" target="_blank" rel="noopener">WASM-4</a> | MIT License
     </p>
   </footer>
 </Layout>
@@ -192,6 +200,14 @@ import { Icon } from 'astro-icon/components';
   .arrow-icon {
     width: 16px;
     height: 16px;
+    color: var(--color-green);
+  }
+
+  .text-key {
+    font-family: var(--font-pixel);
+    font-size: 0.75rem;
+    min-width: 16px;
+    text-align: center;
     color: var(--color-green);
   }
 

@@ -20,11 +20,16 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
       title="WASM-4 Snake Game"
       allowfullscreen
       allow="gamepad; fullscreen"></iframe>
-    <!-- 8-bit style fullscreen overlay button -->
+    <!-- 8-bit style fullscreen overlay button (desktop only) -->
     <button id="fullscreen-btn" class="fullscreen-overlay-btn" title="Toggle Fullscreen">
       <Icon name="pixelarticons:expand" class="icon-expand" />
       <Icon name="pixelarticons:collapse" class="icon-collapse" />
     </button>
+    <!-- Mobile fullscreen hint (non-interactive) -->
+    <div id="fullscreen-hint" class="fullscreen-hint">
+      <Icon name="pixelarticons:expand" class="hint-icon" />
+      <span>Tap to fullscreen</span>
+    </div>
   </div>
   <p class="game-hint">Click to focus, then use arrow keys to play</p>
 </div>
@@ -32,6 +37,7 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
 <script>
   const container = document.getElementById('game-container');
   const btn = document.getElementById('fullscreen-btn');
+  const hint = document.getElementById('fullscreen-hint');
   const iframe = document.getElementById('game-frame') as HTMLIFrameElement;
 
   // Cross-browser fullscreen helpers
@@ -81,9 +87,11 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
     }
   });
 
-  // Update button state on fullscreen change (all vendor prefixes)
+  // Update button/hint state on fullscreen change (all vendor prefixes)
   function updateFullscreenState(): void {
-    btn?.classList.toggle('is-fullscreen', isFullscreen());
+    const fs = isFullscreen();
+    btn?.classList.toggle('is-fullscreen', fs);
+    hint?.classList.toggle('is-hidden', fs);
   }
 
   document.addEventListener('fullscreenchange', updateFullscreenState);
@@ -166,7 +174,8 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
   }
 
   @keyframes pulse-btn {
-    0%, 100% {
+    0%,
+    100% {
       opacity: 0.85;
       transform: scale(1);
     }
@@ -257,6 +266,45 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
     max-height: 100vh;
   }
 
+  /* Mobile fullscreen hint (non-interactive overlay) */
+  .fullscreen-hint {
+    display: none;
+    position: absolute;
+    bottom: 12px;
+    left: 50%;
+    transform: translateX(-50%);
+    padding: 8px 16px;
+    background-color: rgba(26, 28, 44, 0.85);
+    border: 3px solid var(--color-green);
+    color: var(--color-green);
+    font-family: var(--font-pixel);
+    font-size: 0.625rem;
+    pointer-events: none;
+    z-index: 10;
+    gap: 8px;
+    align-items: center;
+    animation: pulse-hint 2s ease-in-out infinite;
+  }
+
+  .fullscreen-hint .hint-icon {
+    width: 16px;
+    height: 16px;
+  }
+
+  .fullscreen-hint.is-hidden {
+    display: none !important;
+  }
+
+  @keyframes pulse-hint {
+    0%,
+    100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.5;
+    }
+  }
+
   /* Responsive scaling */
   @media (max-width: 480px) {
     .game-container iframe {
@@ -264,17 +312,13 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
       height: 256px;
     }
 
+    /* Hide button, show hint on mobile */
     .fullscreen-overlay-btn {
-      width: 40px;
-      height: 40px;
-      bottom: 8px;
-      right: 8px;
-      border-width: 3px;
+      display: none;
     }
 
-    .fullscreen-overlay-btn svg {
-      width: 18px;
-      height: 18px;
+    .fullscreen-hint {
+      display: flex;
     }
   }
 
