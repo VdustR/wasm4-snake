@@ -72,16 +72,28 @@ fn draw_menu_animation(frame: u32) {
         }
     }
 
-    // Draw snake body (3 segments behind head, wrapping effect)
-    unsafe { *DRAW_COLORS = 0x30 }; // Green
-    for i in 1..4 {
+    // Draw snake tail (triangular, pointing left - away from body)
+    let tail_x = head_x - 3 * 8;
+    if tail_x >= base_x - 16 && tail_x < 160 {
+        unsafe { *DRAW_COLORS = 0x30 }; // Green
+                                        // Triangle pointing left: wide on right, point on left
+        rect(tail_x + 6, y + 1, 2, 6); // Base (wide)
+        rect(tail_x + 4, y + 2, 2, 4); // Middle
+        rect(tail_x + 2, y + 3, 2, 2); // Tip
+    }
+
+    // Draw snake body (continuous style - 2 middle segments)
+    unsafe { *DRAW_COLORS = 0x03 }; // Green stroke only
+    for i in 1..3 {
         let seg_x = head_x - i * 8;
         if seg_x >= base_x - 16 && seg_x < 160 {
-            rect(seg_x, y, 7, 8);
+            // Only draw top and bottom edges (left/right connect to neighbors)
+            hline(seg_x, y, 8); // Top
+            hline(seg_x, y + 7, 8); // Bottom
         }
     }
 
-    // Draw snake head with "mouth" effect when eating
+    // Draw snake head with bullet shape (pointed right, blunt tip)
     let eating = (45..55).contains(&cycle_frame);
     if eating && (frame / 4).is_multiple_of(2) {
         // Open mouth animation
@@ -90,12 +102,11 @@ fn draw_menu_animation(frame: u32) {
         rect(head_x, y + 5, 8, 3);
     } else {
         unsafe { *DRAW_COLORS = 0x43 }; // Yellow fill, green stroke
-        rect(head_x, y, 8, 8);
+                                        // Bullet shape: square left, tapered right
+        rect(head_x, y + 1, 5, 6); // Main body
+        rect(head_x + 5, y + 2, 2, 4); // Taper
+        rect(head_x + 7, y + 3, 1, 2); // Blunt tip
     }
-
-    // Draw eye
-    unsafe { *DRAW_COLORS = 0x10 }; // Dark
-    rect(head_x + 5, y + 2, 2, 2);
 }
 
 /// Draw the settings menu

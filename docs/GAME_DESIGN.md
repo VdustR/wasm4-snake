@@ -55,10 +55,23 @@ Collision damage is **synchronized with movement speed**:
 ### Collision Rules
 
 **Head-to-Head Collision (highest priority):**
-- Both snakes shrink -1
-- If enemy dies from this: score +15 (sacrifice kill bonus)
-- Visual: Cross flash at collision point
-- Audio: Head clash sound effect
+
+When two snakes collide head-to-head, the outcome depends on direction and length:
+
+*Both Facing Each Other (opposite directions):*
+- Longer snake wins: absorbs ALL of shorter snake's length
+- Score: enemy length × 50 points for killing
+- Equal length: both shrink -1, if enemy dies: score +15
+- Audio: Head kill sound (winner) or Head clash sound (equal)
+
+*Attacker Not Facing Defender:*
+- Attacker longer: absorbs ALL of defender's length, score = length × 50
+- Attacker equal or shorter: attacker shrinks -1, defender grows +1
+
+**Self-Collision:**
+- Snake CANNOT pass through its own body
+- Attempting to move into self: stay in place, shrink -1
+- Audio: Self-hurt sound effect
 
 **Player Head vs Enemy Body:**
 - Player shrinks -1, enemy grows +1
@@ -73,7 +86,7 @@ Collision damage is **synchronized with movement speed**:
 - Audio: Enemy hurt sound effect
 
 **Enemy vs Enemy:**
-- Head-to-head collision: both enemies shrink -1
+- Head-to-head: same rules as player (longer wins, absorbs length)
 - Head hits body: attacker shrinks -1, defender grows +1
 - Enemies die when shrinking below minimum length (3)
 
@@ -121,8 +134,8 @@ Three sizes with different growth values:
 | Size | Growth | Points | Spawn Weight |
 |------|--------|--------|--------------|
 | Small | +1 | +10 | Common |
-| Medium | +2 | +25 | Uncommon |
-| Large | +3 | +50 | Rare |
+| Medium | +2 | +20 | Uncommon |
+| Large | +3 | +30 | Rare |
 
 ## AI Behavior
 
@@ -146,6 +159,8 @@ Three sizes with different growth values:
 | Energy Efficiency | 30% | 50% | 70% | 90% |
 | Sacrifice Willingness | 0% | 15% | 40% | 70% |
 | Head Clash Willingness | 0% | 10% | 25% | 45% |
+| Offensive Head Attack | 0% | 20% | 45% | 70% |
+| Player Focus | 40% | 60% | 75% | 90% |
 
 ### Sacrifice Willingness
 
@@ -173,6 +188,24 @@ Conditions for head clash attempt:
 - Has length to spare (> minimum length)
 - Player is near death or not much longer
 
+### Offensive Head Attack
+
+Higher difficulty AI will aggressively seek head-to-head when longer than player:
+- **Noob**: Never uses offensive head attacks
+- **Normal**: Occasionally exploits length advantage (20%)
+- **Hell**: Often seeks head-to-head when longer (45%)
+- **Nightmare**: Very aggressive length-based attacks (70%)
+
+With the new head-to-head rules, longer snakes win and absorb the shorter one, making this a powerful strategy.
+
+### Player Focus
+
+How much AI prioritizes attacking the player over other enemies:
+- **Noob**: Moderate focus on player (40%)
+- **Normal**: Prefers targeting player (60%)
+- **Hell**: Strong player focus (75%)
+- **Nightmare**: Almost always targets player (90%)
+
 ### AI Boost Usage
 
 Enemies use boost when:
@@ -194,12 +227,12 @@ Enemies slow down for precise control and damage reduction:
 
 ### Points
 - Small food: +10
-- Medium food: +25
-- Large food: +50
+- Medium food: +20
+- Large food: +30
 - Enemy shrinks by hitting your body: +10
 - Your head hits enemy body: -10
-- Head-to-head collision (neutral): 0
-- Head-to-head kills enemy: +15 (sacrifice kill bonus)
+- Head-to-head equal length, enemy dies: +15
+- Head-to-head victory (absorb enemy): enemy length × 50
 
 ### High Scores
 - Separate high score per difficulty level (5 slots)
@@ -222,3 +255,40 @@ Enemies slow down for precise control and damage reduction:
 - Play area: 20x20 grid (8 pixels per cell)
 - Status bar at bottom: Score, Energy indicators
 - Menu screens: Title, settings, difficulty select, game over
+
+## Visual Style
+
+### Snake Appearance
+
+The snake has a distinctive visual design:
+
+**Head (Bullet Shape):**
+- Pointed front with blunt tip (not sharp)
+- Square back to connect smoothly to body
+- Direction indicator shows which way snake is facing
+- Yellow/green fill for player, varied colors for enemies
+
+**Body (Continuous Style):**
+- Only outer edges are drawn (no internal segment dividers)
+- Adjacent segments share edges, creating a connected appearance
+- Green outline for player, purple/varied for enemies
+
+**Tail (Triangle):**
+- Triangular shape pointing away from body
+- Tapers from wide base to pointed tip
+- Same color as body
+
+### Direction Feedback
+
+- Player's visual direction updates immediately on input
+- Actual movement direction may differ (can't reverse 180°)
+- This provides responsive UI feedback while maintaining game rules
+
+### Color Scheme (4-color palette)
+
+| Index | Color | Usage |
+|-------|-------|-------|
+| 1 | Dark | Background, outlines |
+| 2 | Purple | Enemy bodies, UI elements |
+| 3 | Green | Player body, text |
+| 4 | Yellow | Player head, highlights, food |

@@ -201,6 +201,34 @@ impl Difficulty {
             Difficulty::Nightmare => 45, // Frequently attempts mutual damage
         }
     }
+
+    /// Probability (0-100) that AI will aggressively seek head-to-head when longer.
+    /// New head-to-head rules reward longer snakes, so high difficulty AI exploits this.
+    pub const fn offensive_head_attack(&self) -> u8 {
+        match self {
+            Difficulty::Classic => 0,
+            Difficulty::Noob => 0,
+            Difficulty::Normal => 20,
+            Difficulty::Hell => 45,
+            Difficulty::Nightmare => 70,
+        }
+    }
+
+    /// Probability (0-100) that AI will prioritize attacking player over other enemies.
+    pub const fn player_focus(&self) -> u8 {
+        match self {
+            Difficulty::Classic => 0,
+            Difficulty::Noob => 40,
+            Difficulty::Normal => 60,
+            Difficulty::Hell => 75,
+            Difficulty::Nightmare => 90,
+        }
+    }
+}
+
+/// Check if two directions are facing each other (opposite directions)
+fn is_facing_each_other(dir_a: Direction, dir_b: Direction) -> bool {
+    dir_a == dir_b.opposite()
 }
 
 /// Boost duration in frames (2 seconds at 60 FPS)
@@ -455,9 +483,18 @@ impl Game {
                     100 // Far away when no supply
                 };
 
-                // Calculate length difference for sacrifice decisions
+                // Calculate length difference for decisions
+                // Positive = player is longer, negative = enemy is longer
                 let length_diff = player_length as i32 - enemy.length as i32;
                 let sacrifice_willingness = difficulty.sacrifice_willingness();
+                let offensive_head_attack = difficulty.offensive_head_attack();
+                let player_focus = difficulty.player_focus();
+
+                // NEW: Check if AI should aggressively seek head-to-head when LONGER than player
+                // With new rules, longer snake wins and absorbs shorter one
+                let should_offensive_head = length_diff < 0 // Enemy is longer
+                    && dist_to_player < 6
+                    && self.rng.range(0, 100) < offensive_head_attack as i32;
 
                 // Check if AI should sacrifice length to attack (aggressive behavior)
                 // Only when: close to player, player is longer (but not too much), AI has length to spare
@@ -479,6 +516,7 @@ impl Game {
                     && length_diff > 0
                     && !should_sacrifice_attack
                     && !should_head_clash
+                    && !should_offensive_head
                     && self.rng.range(0, 100) < escape_intelligence as i32;
 
                 // Check if should grab supply
@@ -486,16 +524,23 @@ impl Game {
                     && dist_to_supply < 8
                     && self.rng.range(0, 100) < supply_aggression as i32;
 
-                // Decide AI state - sacrifice/head-clash attacks take priority
-                if should_sacrifice_attack || should_head_clash {
+                // Decide AI state - offensive head attack and sacrifice attacks take priority
+                if should_offensive_head || should_sacrifice_attack || should_head_clash {
                     enemy.ai_state = EnemyAIState::Chasing; // Aggressively chase for attack
                 } else if should_flee {
                     enemy.ai_state = EnemyAIState::Fleeing;
                 } else if should_grab_supply {
                     enemy.ai_state = EnemyAIState::GrabbingSupply;
                 } else {
+                    // Use player_focus to determine chase probability
+                    let effective_chase =
+                        chase_ratio.max(if self.rng.range(0, 100) < player_focus as i32 {
+                            chase_ratio + 20 // Boost chase ratio when player-focused
+                        } else {
+                            chase_ratio
+                        });
                     let roll = self.rng.range(0, 100) as u8;
-                    if roll < chase_ratio {
+                    if roll < effective_chase {
                         enemy.ai_state = EnemyAIState::Chasing;
                     } else {
                         enemy.ai_state = EnemyAIState::Seeking;
@@ -612,7 +657,7 @@ impl Game {
                 let would_hit_player_head = next_head == player_head;
 
                 if would_hit_player_head {
-                    // Head-to-head collision - don't move, apply damage
+                    // Head-to-head collision with new rules
                     enemy.just_moved = true;
 
                     if difficulty == Difficulty::Classic {
@@ -620,18 +665,61 @@ impl Game {
                         self.on_game_over();
                         return;
                     } else {
-                        // Battle mode: both shrink
-                        let player_survived = self.snake.shrink();
-                        let enemy_survived = self.enemies.enemies[i].shrink();
-                        self.play_head_clash_sound();
+                        // New head-to-head rules based on direction and length
+                        let player_dir = self.snake.direction;
+                        let enemy_dir = self.enemies.enemies[i].direction;
+                        let player_len = self.snake.length;
+                        let enemy_len = self.enemies.enemies[i].length;
+                        let facing = is_facing_each_other(player_dir, enemy_dir);
+
                         self.trigger_collision_flash(next_head);
-                        if !player_survived {
-                            self.on_game_over();
-                            return;
-                        }
-                        if !enemy_survived {
-                            self.enemies.kill(i);
-                            self.score += 15;
+
+                        if facing {
+                            // Both facing each other: longer one wins
+                            if enemy_len > player_len {
+                                // Enemy wins - player dies
+                                self.play_head_clash_sound();
+                                self.on_game_over();
+                                return;
+                            } else if player_len > enemy_len {
+                                // Player wins - absorb enemy's length
+                                let absorbed = enemy_len;
+                                for _ in 0..absorbed {
+                                    self.snake.try_grow_or_energy(max_len);
+                                }
+                                self.score += (absorbed as u32) * 50;
+                                self.enemies.kill(i);
+                                self.play_head_kill_sound();
+                            } else {
+                                // Equal length: both lose 1
+                                let player_survived = self.snake.shrink();
+                                let enemy_survived = self.enemies.enemies[i].shrink();
+                                self.play_head_clash_sound();
+                                if !player_survived {
+                                    self.on_game_over();
+                                    return;
+                                }
+                                if !enemy_survived {
+                                    self.enemies.kill(i);
+                                    self.score += 15;
+                                }
+                            }
+                        } else {
+                            // Not facing: enemy is attacking (moving toward player)
+                            if enemy_len > player_len {
+                                // Enemy longer: player dies
+                                self.play_head_clash_sound();
+                                self.on_game_over();
+                                return;
+                            } else {
+                                // Enemy equal or shorter: enemy loses 1, player gains 1
+                                self.snake.try_grow_or_energy(max_len);
+                                self.play_enemy_hurt_sound();
+                                if !self.enemies.enemies[i].shrink() {
+                                    self.enemies.kill(i);
+                                }
+                                self.score += 10;
+                            }
                         }
                     }
                 } else if would_hit_player_body {
@@ -703,14 +791,89 @@ impl Game {
                 let head_i = self.enemies.enemies[i].head();
                 let head_j = self.enemies.enemies[j].head();
 
-                // Head-to-head collision: only if either just moved
+                // Head-to-head collision with new rules
                 if head_i == head_j {
-                    // Both shrink
-                    if !self.enemies.enemies[i].shrink() {
-                        self.enemies.kill(i);
-                    }
-                    if !self.enemies.enemies[j].shrink() {
-                        self.enemies.kill(j);
+                    let dir_i = self.enemies.enemies[i].direction;
+                    let dir_j = self.enemies.enemies[j].direction;
+                    let len_i = self.enemies.enemies[i].length;
+                    let len_j = self.enemies.enemies[j].length;
+                    let facing = is_facing_each_other(dir_i, dir_j);
+
+                    if facing {
+                        // Both facing: longer wins and absorbs
+                        if len_i > len_j {
+                            // i wins
+                            for _ in 0..len_j {
+                                self.enemies.enemies[i].try_grow_or_energy(max_len);
+                            }
+                            self.enemies.kill(j);
+                        } else if len_j > len_i {
+                            // j wins
+                            for _ in 0..len_i {
+                                self.enemies.enemies[j].try_grow_or_energy(max_len);
+                            }
+                            self.enemies.kill(i);
+                        } else {
+                            // Equal: both lose 1
+                            if !self.enemies.enemies[i].shrink() {
+                                self.enemies.kill(i);
+                            }
+                            if !self.enemies.enemies[j].shrink() {
+                                self.enemies.kill(j);
+                            }
+                        }
+                    } else {
+                        // Not facing: check who moved (attacker)
+                        if i_moved && !j_moved {
+                            // i is attacking j
+                            if len_i > len_j {
+                                for _ in 0..len_j {
+                                    self.enemies.enemies[i].try_grow_or_energy(max_len);
+                                }
+                                self.enemies.kill(j);
+                            } else {
+                                // i loses 1, j gains 1
+                                self.enemies.enemies[j].try_grow_or_energy(max_len);
+                                if !self.enemies.enemies[i].shrink() {
+                                    self.enemies.kill(i);
+                                }
+                            }
+                        } else if j_moved && !i_moved {
+                            // j is attacking i
+                            if len_j > len_i {
+                                for _ in 0..len_i {
+                                    self.enemies.enemies[j].try_grow_or_energy(max_len);
+                                }
+                                self.enemies.kill(i);
+                            } else {
+                                // j loses 1, i gains 1
+                                self.enemies.enemies[i].try_grow_or_energy(max_len);
+                                if !self.enemies.enemies[j].shrink() {
+                                    self.enemies.kill(j);
+                                }
+                            }
+                        } else {
+                            // Both moved: treat as mutual, longer wins
+                            if len_i > len_j {
+                                for _ in 0..len_j {
+                                    self.enemies.enemies[i].try_grow_or_energy(max_len);
+                                }
+                                self.enemies.kill(j);
+                            } else if len_j > len_i {
+                                for _ in 0..len_i {
+                                    self.enemies.enemies[j].try_grow_or_energy(max_len);
+                                }
+                                self.enemies.kill(i);
+                            } else {
+                                // Equal: both lose 1
+                                if !self.enemies.enemies[i].shrink() {
+                                    self.enemies.kill(i);
+                                }
+                                if !self.enemies.enemies[j].shrink() {
+                                    self.enemies.kill(j);
+                                }
+                            }
+                        }
                     }
                     continue;
                 }
@@ -1002,58 +1165,122 @@ impl Game {
         let is_classic = self.difficulty == Difficulty::Classic;
         let max_len = self.difficulty.max_snake_length();
 
-        // Check if moving would cause collision with enemies (before moving)
+        // Check if moving would cause collision (before moving)
         let mut should_move = true;
         let mut game_over = false;
 
-        for i in 0..MAX_ENEMIES {
-            if !self.enemies.enemies[i].alive {
-                continue;
-            }
-
-            let enemy_head = self.enemies.enemies[i].head();
-
-            // Head-to-head collision check
-            if next_head == enemy_head {
-                should_move = false; // Don't move into collision
-                if is_classic {
+        // Check self-collision BEFORE moving - snake cannot pass through itself
+        if self.snake.would_collide_with_self() {
+            should_move = false; // Stay in place
+            if is_classic {
+                game_over = true;
+            } else {
+                // Battle mode: take damage but don't move
+                self.play_self_hurt_sound();
+                self.trigger_collision_flash(next_head);
+                if !self.snake.shrink() {
                     game_over = true;
-                } else {
-                    let player_survived = self.snake.shrink();
-                    let enemy_survived = self.enemies.enemies[i].shrink();
-                    self.play_head_clash_sound();
-                    self.trigger_collision_flash(next_head);
-                    if !player_survived {
-                        game_over = true;
-                    }
-                    if !enemy_survived {
-                        self.enemies.kill(i);
-                        self.score += 15;
-                    }
                 }
-                break;
-            }
-
-            // Player head vs enemy body collision check
-            if self.enemies.enemies[i].length > 1
-                && self.enemies.enemies[i].body[1..self.enemies.enemies[i].length]
-                    .contains(&next_head)
-            {
-                should_move = false; // Don't move into collision
-                if is_classic {
-                    game_over = true;
-                } else {
-                    self.enemies.enemies[i].try_grow_or_energy(max_len);
-                    self.play_player_hurt_sound();
-                    self.trigger_collision_flash(next_head);
-                    if !self.snake.shrink() {
-                        game_over = true;
-                    }
-                    self.score = self.score.saturating_sub(10);
-                }
-                break;
             }
         }
+
+        // Check enemy collisions only if we haven't already determined to stop
+        if should_move {
+            for i in 0..MAX_ENEMIES {
+                if !self.enemies.enemies[i].alive {
+                    continue;
+                }
+
+                let enemy_head = self.enemies.enemies[i].head();
+
+                // Head-to-head collision check with new rules
+                if next_head == enemy_head {
+                    should_move = false; // Don't move into collision
+                    if is_classic {
+                        game_over = true;
+                    } else {
+                        // New head-to-head rules based on direction and length
+                        let player_dir = self.snake.direction;
+                        let enemy_dir = self.enemies.enemies[i].direction;
+                        let player_len = self.snake.length;
+                        let enemy_len = self.enemies.enemies[i].length;
+                        let facing = is_facing_each_other(player_dir, enemy_dir);
+
+                        self.trigger_collision_flash(next_head);
+
+                        if facing {
+                            // Both facing each other: longer one wins
+                            if player_len > enemy_len {
+                                // Player wins - absorb enemy's length
+                                let absorbed = enemy_len;
+                                for _ in 0..absorbed {
+                                    self.snake.try_grow_or_energy(max_len);
+                                }
+                                self.score += (absorbed as u32) * 50;
+                                self.enemies.kill(i);
+                                self.play_head_kill_sound();
+                            } else if enemy_len > player_len {
+                                // Enemy wins - player dies
+                                game_over = true;
+                                self.play_head_clash_sound();
+                            } else {
+                                // Equal length: both lose 1
+                                let player_survived = self.snake.shrink();
+                                let enemy_survived = self.enemies.enemies[i].shrink();
+                                self.play_head_clash_sound();
+                                if !player_survived {
+                                    game_over = true;
+                                }
+                                if !enemy_survived {
+                                    self.enemies.kill(i);
+                                    self.score += 15;
+                                }
+                            }
+                        } else {
+                            // Not facing each other: player is attacking (moving toward enemy)
+                            if player_len > enemy_len {
+                                // Player longer: enemy dies, player absorbs
+                                let absorbed = enemy_len;
+                                for _ in 0..absorbed {
+                                    self.snake.try_grow_or_energy(max_len);
+                                }
+                                self.score += (absorbed as u32) * 50;
+                                self.enemies.kill(i);
+                                self.play_head_kill_sound();
+                            } else {
+                                // Player equal or shorter: player loses 1, enemy gains 1
+                                self.enemies.enemies[i].try_grow_or_energy(max_len);
+                                self.play_player_hurt_sound();
+                                if !self.snake.shrink() {
+                                    game_over = true;
+                                }
+                            }
+                        }
+                    }
+                    break;
+                }
+
+                // Player head vs enemy body collision check
+                if self.enemies.enemies[i].length > 1
+                    && self.enemies.enemies[i].body[1..self.enemies.enemies[i].length]
+                        .contains(&next_head)
+                {
+                    should_move = false; // Don't move into collision
+                    if is_classic {
+                        game_over = true;
+                    } else {
+                        self.enemies.enemies[i].try_grow_or_energy(max_len);
+                        self.play_player_hurt_sound();
+                        self.trigger_collision_flash(next_head);
+                        if !self.snake.shrink() {
+                            game_over = true;
+                        }
+                        self.score = self.score.saturating_sub(10);
+                    }
+                    break;
+                }
+            }
+        } // End of if should_move (enemy collision checks)
 
         if game_over {
             self.on_game_over();
@@ -1081,14 +1308,7 @@ impl Game {
             self.play_eat_sound();
         }
 
-        // Check self collision (only if we moved)
-        if should_move && self.snake.collides_with_self() {
-            // Classic mode: instant death
-            // Other modes: shrink (death only at min length)
-            if is_classic || !self.snake.shrink() {
-                self.on_game_over();
-            }
-        }
+        // Self-collision is now checked BEFORE movement (snake cannot pass through itself)
     }
 
     /// Handle game over
@@ -1105,58 +1325,136 @@ impl Game {
         self.play_game_over_sound();
     }
 
+    /// Get direction from p1 to p2 (with wrap-around)
+    fn direction_to(p1: Point, p2: Point) -> Option<Direction> {
+        let dx = p2.x - p1.x;
+        let dy = p2.y - p1.y;
+        // Handle wrap-around
+        if dx == 1 || dx == -(GRID_SIZE - 1) {
+            Some(Direction::Right)
+        } else if dx == -1 || dx == GRID_SIZE - 1 {
+            Some(Direction::Left)
+        } else if dy == 1 || dy == -(GRID_SIZE - 1) {
+            Some(Direction::Down)
+        } else if dy == -1 || dy == GRID_SIZE - 1 {
+            Some(Direction::Up)
+        } else {
+            None
+        }
+    }
+
+    /// Draw a continuous body segment (only draw edges not connected to neighbors)
+    fn draw_body_segment(
+        &self,
+        x: i32,
+        y: i32,
+        prev: Option<Point>,
+        next: Option<Point>,
+        current: Point,
+    ) {
+        // Check which neighbors exist
+        let has_top = prev.is_some_and(|p| Self::direction_to(current, p) == Some(Direction::Up))
+            || next.is_some_and(|p| Self::direction_to(current, p) == Some(Direction::Up));
+        let has_bottom = prev
+            .is_some_and(|p| Self::direction_to(current, p) == Some(Direction::Down))
+            || next.is_some_and(|p| Self::direction_to(current, p) == Some(Direction::Down));
+        let has_left = prev
+            .is_some_and(|p| Self::direction_to(current, p) == Some(Direction::Left))
+            || next.is_some_and(|p| Self::direction_to(current, p) == Some(Direction::Left));
+        let has_right = prev
+            .is_some_and(|p| Self::direction_to(current, p) == Some(Direction::Right))
+            || next.is_some_and(|p| Self::direction_to(current, p) == Some(Direction::Right));
+
+        // Only draw edges that don't connect to a neighbor
+        if !has_top {
+            hline(x, y, CELL_SIZE);
+        }
+        if !has_bottom {
+            hline(x, y + CELL_SIZE as i32 - 1, CELL_SIZE);
+        }
+        if !has_left {
+            vline(x, y, CELL_SIZE);
+        }
+        if !has_right {
+            vline(x + CELL_SIZE as i32 - 1, y, CELL_SIZE);
+        }
+    }
+
+    /// Draw pointed head (front pointed with blunt tip, back square)
+    /// Creates a bullet-like shape: square on back, tapered front with blunt tip
+    fn draw_pointed_head(&self, x: i32, y: i32, dir: Direction, fill_stroke: u16) {
+        unsafe { *DRAW_COLORS = fill_stroke };
+        // Draw based on direction - bullet shape with blunt tip
+        match dir {
+            Direction::Right => {
+                // Bullet pointing right: square left, tapered right
+                rect(x, y + 1, 5, 6); // Main body (left part)
+                rect(x + 5, y + 2, 2, 4); // Taper
+                rect(x + 7, y + 3, 1, 2); // Blunt tip
+            }
+            Direction::Left => {
+                // Bullet pointing left: square right, tapered left
+                rect(x + 3, y + 1, 5, 6); // Main body (right part)
+                rect(x + 1, y + 2, 2, 4); // Taper
+                rect(x, y + 3, 1, 2); // Blunt tip
+            }
+            Direction::Up => {
+                // Bullet pointing up: square bottom, tapered top
+                rect(x + 1, y + 3, 6, 5); // Main body (bottom part)
+                rect(x + 2, y + 1, 4, 2); // Taper
+                rect(x + 3, y, 2, 1); // Blunt tip
+            }
+            Direction::Down => {
+                // Bullet pointing down: square top, tapered bottom
+                rect(x + 1, y, 6, 5); // Main body (top part)
+                rect(x + 2, y + 5, 4, 2); // Taper
+                rect(x + 3, y + 7, 2, 1); // Blunt tip
+            }
+        }
+    }
+
+    /// Draw triangular tail pointing away from body
+    /// Creates a triangle that tapers to a point in the direction of away_dir
+    fn draw_tail(&self, x: i32, y: i32, away_dir: Direction) {
+        // Draw triangle pointing in away_dir direction using rect calls
+        match away_dir {
+            Direction::Right => {
+                // Triangle pointing right: wide on left, point on right
+                rect(x, y + 1, 2, 6); // Base (wide)
+                rect(x + 2, y + 2, 2, 4); // Middle
+                rect(x + 4, y + 3, 2, 2); // Tip
+            }
+            Direction::Left => {
+                // Triangle pointing left: wide on right, point on left
+                rect(x + 6, y + 1, 2, 6); // Base (wide)
+                rect(x + 4, y + 2, 2, 4); // Middle
+                rect(x + 2, y + 3, 2, 2); // Tip
+            }
+            Direction::Down => {
+                // Triangle pointing down: wide on top, point on bottom
+                rect(x + 1, y, 6, 2); // Base (wide)
+                rect(x + 2, y + 2, 4, 2); // Middle
+                rect(x + 3, y + 4, 2, 2); // Tip
+            }
+            Direction::Up => {
+                // Triangle pointing up: wide on bottom, point on top
+                rect(x + 1, y + 6, 6, 2); // Base (wide)
+                rect(x + 2, y + 4, 4, 2); // Middle
+                rect(x + 3, y + 2, 2, 2); // Tip
+            }
+        }
+    }
+
     /// Draw the game (snake, food, enemies, score)
     fn draw_game(&self) {
-        // Draw player snake body with boost/slow flash effects
-        for i in 1..self.snake.length {
-            let p = self.snake.body[i];
-
-            // Boost: wave flash effect (head to tail)
-            let body_visible = if self.boost_timer > 0 {
-                // Wave pattern: (frame/4 + index) % 8 < 4
-                ((self.frame_count / 4) as usize + i) % 8 < 4
-            } else {
-                true
-            };
-
-            if body_visible {
-                unsafe { *DRAW_COLORS = 0x32 }; // Fill=3, Stroke=2
-            } else {
-                unsafe { *DRAW_COLORS = 0x42 }; // Brighter flash (yellow)
-            }
-
-            rect(
-                p.x * CELL_SIZE as i32,
-                p.y * CELL_SIZE as i32,
-                CELL_SIZE,
-                CELL_SIZE,
-            );
-        }
-
-        // Draw player snake head
-        let head = self.snake.head();
-
-        // Slow: head-only flash effect
-        let head_bright = if self.slow_timer > 0 {
-            (self.frame_count / 6).is_multiple_of(2)
-        } else if self.boost_timer > 0 {
-            // During boost, head also flashes
-            (self.frame_count / 4) % 8 < 4
-        } else {
-            true
-        };
-
-        if head_bright {
-            unsafe { *DRAW_COLORS = 0x43 }; // Fill=4, Stroke=3
-        } else {
-            unsafe { *DRAW_COLORS = 0x23 }; // Dimmer flash
-        }
-
-        rect(
-            head.x * CELL_SIZE as i32,
-            head.y * CELL_SIZE as i32,
-            CELL_SIZE,
-            CELL_SIZE,
+        // Draw player snake
+        self.draw_snake(
+            &self.snake.body,
+            self.snake.length,
+            self.snake.visual_direction,
+            0x03, // body stroke (green)
+            0x43, // head fill+stroke (yellow/green)
+            true, // is_player (for boost/slow effects)
         );
 
         // Draw enemies
@@ -1178,39 +1476,123 @@ impl Game {
         self.draw_collision_flash();
     }
 
-    /// Draw enemy snakes
+    /// Draw a snake with continuous body, pointed head, and triangular tail
+    fn draw_snake(
+        &self,
+        body: &[Point],
+        length: usize,
+        direction: Direction,
+        body_stroke: u16,
+        head_fill_stroke: u16,
+        is_player: bool,
+    ) {
+        if length == 0 {
+            return;
+        }
+
+        // Draw body segments (from index 1 to length-2, excluding head and tail)
+        for i in 1..length.saturating_sub(1) {
+            let p = body[i];
+            let x = p.x * CELL_SIZE as i32;
+            let y = p.y * CELL_SIZE as i32;
+
+            // Boost/slow flash effects for player
+            let color = if is_player && self.boost_timer > 0 {
+                if ((self.frame_count / 4) as usize + i) % 8 < 4 {
+                    body_stroke
+                } else {
+                    0x04 // Yellow flash
+                }
+            } else {
+                body_stroke
+            };
+            unsafe { *DRAW_COLORS = color };
+
+            // Get previous and next segments for connectivity
+            let prev = if i > 0 { Some(body[i - 1]) } else { None };
+            let next = if i + 1 < length {
+                Some(body[i + 1])
+            } else {
+                None
+            };
+
+            self.draw_body_segment(x, y, prev, next, p);
+        }
+
+        // Draw tail (last segment) as triangle
+        if length > 1 {
+            let tail_idx = length - 1;
+            let tail = body[tail_idx];
+            let prev = body[tail_idx - 1];
+            let x = tail.x * CELL_SIZE as i32;
+            let y = tail.y * CELL_SIZE as i32;
+
+            // Direction tail points = opposite of direction from prev to tail
+            let tail_dir = Self::direction_to(prev, tail).unwrap_or(Direction::Right);
+
+            let color = if is_player && self.boost_timer > 0 {
+                if ((self.frame_count / 4) as usize + tail_idx) % 8 < 4 {
+                    body_stroke
+                } else {
+                    0x04
+                }
+            } else {
+                body_stroke
+            };
+            unsafe { *DRAW_COLORS = color };
+            self.draw_tail(x, y, tail_dir);
+        }
+
+        // Draw head (first segment) with pointed shape
+        let head = body[0];
+        let hx = head.x * CELL_SIZE as i32;
+        let hy = head.y * CELL_SIZE as i32;
+
+        // Head flash effects for player
+        let head_color = if is_player {
+            if self.slow_timer > 0 {
+                if (self.frame_count / 6).is_multiple_of(2) {
+                    head_fill_stroke
+                } else {
+                    0x23
+                }
+            } else if self.boost_timer > 0 {
+                if (self.frame_count / 4) % 8 < 4 {
+                    head_fill_stroke
+                } else {
+                    0x23
+                }
+            } else {
+                head_fill_stroke
+            }
+        } else {
+            head_fill_stroke
+        };
+
+        self.draw_pointed_head(hx, hy, direction, head_color);
+    }
+
+    /// Draw enemy snakes using the new continuous style
     fn draw_enemies(&self) {
         for enemy in &self.enemies.enemies {
             if !enemy.alive {
                 continue;
             }
 
-            // Draw enemy body with different color based on color_index
-            let (body_color, head_color) = match enemy.color_index {
-                1 => (0x21, 0x12), // Purple tones
-                2 => (0x21, 0x41), // Purple/Yellow
-                _ => (0x12, 0x42), // Different combo
+            // Colors based on color_index - all use visible colors (not 0x01 which is dark/background)
+            let (body_stroke, head_fill_stroke) = match enemy.color_index {
+                1 => (0x02, 0x21), // Purple stroke, Purple fill
+                2 => (0x02, 0x42), // Purple stroke, Yellow fill
+                _ => (0x02, 0x41), // Purple stroke, Yellow fill (was 0x01 = invisible)
             };
 
-            for i in 1..enemy.length {
-                let p = enemy.body[i];
-                unsafe { *DRAW_COLORS = body_color };
-                rect(
-                    p.x * CELL_SIZE as i32,
-                    p.y * CELL_SIZE as i32,
-                    CELL_SIZE,
-                    CELL_SIZE,
-                );
-            }
-
-            // Draw enemy head
-            let head = enemy.head();
-            unsafe { *DRAW_COLORS = head_color };
-            rect(
-                head.x * CELL_SIZE as i32,
-                head.y * CELL_SIZE as i32,
-                CELL_SIZE,
-                CELL_SIZE,
+            self.draw_snake(
+                &enemy.body,
+                enemy.length,
+                enemy.direction,
+                body_stroke,
+                head_fill_stroke,
+                false, // not player
             );
         }
     }
@@ -1393,6 +1775,27 @@ impl Game {
         if self.sfx_enabled {
             // Rising tone indicates successful hit
             tone(220 | (440 << 16), 3 | (5 << 8), 50, TONE_PULSE1);
+        }
+    }
+
+    /// Self-hurt sound - player hit their own body
+    fn play_self_hurt_sound(&self) {
+        if self.sfx_enabled {
+            // Low triangle wave for self-damage
+            tone(220 | (110 << 16), 8, 50, TONE_TRIANGLE);
+        }
+    }
+
+    /// Head-kill sound - killed enemy via head-to-head collision
+    fn play_head_kill_sound(&self) {
+        if self.sfx_enabled {
+            // Dramatic rising sound for head-to-head kill
+            tone(
+                220 | (880 << 16),
+                10 | (8 << 8),
+                80,
+                TONE_PULSE1 | TONE_MODE2,
+            );
         }
     }
 

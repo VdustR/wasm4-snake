@@ -23,8 +23,8 @@ impl FoodSize {
     pub const fn score_value(&self) -> u32 {
         match self {
             FoodSize::Small => 10,
-            FoodSize::Medium => 25,
-            FoodSize::Large => 50,
+            FoodSize::Medium => 20,
+            FoodSize::Large => 30,
         }
     }
 
@@ -139,8 +139,8 @@ mod tests {
     #[test]
     fn test_food_size_score() {
         assert_eq!(FoodSize::Small.score_value(), 10);
-        assert_eq!(FoodSize::Medium.score_value(), 25);
-        assert_eq!(FoodSize::Large.score_value(), 50);
+        assert_eq!(FoodSize::Medium.score_value(), 20);
+        assert_eq!(FoodSize::Large.score_value(), 30);
     }
 
     #[test]

@@ -61,6 +61,8 @@ pub struct Snake {
     pub length: usize,
     /// Current movement direction
     pub direction: Direction,
+    /// Visual direction for immediate input feedback (rendered direction)
+    pub visual_direction: Direction,
     /// Energy for speed boost
     pub energy: u8,
 }
@@ -78,6 +80,7 @@ impl Snake {
             body,
             length: MIN_SNAKE_LENGTH,
             direction: Direction::Right,
+            visual_direction: Direction::Right,
             energy: INITIAL_ENERGY,
         }
     }
@@ -120,17 +123,51 @@ impl Snake {
         }
     }
 
-    /// Try to change direction (ignores 180-degree turns)
+    /// Try to change direction (ignores turns into own body)
+    /// Prevents: 180-degree turns AND turns into second segment
+    /// Updates visual_direction immediately for responsive UI feedback
     pub fn set_direction(&mut self, new_dir: Direction) {
-        if new_dir != self.direction.opposite() {
-            self.direction = new_dir;
+        // Don't allow 180-degree turns
+        if new_dir == self.direction.opposite() {
+            return;
         }
+
+        // Don't allow turning into the second segment
+        if self.length > 1 {
+            let head = self.body[0];
+            let second = self.body[1];
+            let delta = new_dir.delta();
+            let next_head = Point::new(
+                (head.x + delta.x).rem_euclid(GRID_SIZE),
+                (head.y + delta.y).rem_euclid(GRID_SIZE),
+            );
+            // If turning would put head where second segment is, block it
+            if next_head == second {
+                return;
+            }
+        }
+
+        self.visual_direction = new_dir;
+        self.direction = new_dir;
     }
 
-    /// Check if head collides with any body segment
+    /// Check if head collides with any body segment (used for tests)
+    #[cfg(test)]
     pub fn collides_with_self(&self) -> bool {
         let head = self.head();
         self.body[1..self.length].contains(&head)
+    }
+
+    /// Check if next move would collide with body (excluding tail which will move)
+    pub fn would_collide_with_self(&self) -> bool {
+        let next_head = self.peek_next_head();
+        // Check against body excluding the tail (which will move away)
+        // Body indices 1 to length-2 (tail at length-1 will move)
+        if self.length > 2 {
+            self.body[1..self.length - 1].contains(&next_head)
+        } else {
+            false
+        }
     }
 
     /// Check if a point is occupied by the snake
