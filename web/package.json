@@ -15,7 +15,7 @@
   },
   "pnpm": {
     "overrides": {
-      "js-yaml": "4.2.0",
+      "js-yaml": "4.3.1",
       "nanoid@<3.3.12": "3.3.18",
       "postcss": "8.5.26"
     }
@@ -33,20 +33,20 @@
     "check": "astro check"
   },
   "dependencies": {
-    "@iconify-json/pixelarticons": "^1.2.2",
-    "astro": "^5.2.5",
-    "astro-icon": "^1.1.5"
+    "@iconify-json/pixelarticons": "^1.2.9",
+    "astro": "^7.2.10",
+    "astro-icon": "^1.2.0"
   },
   "devDependencies": {
-    "@astrojs/check": "^0.9.4",
-    "@astrojs/sitemap": "^3.2.1",
-    "@typescript-eslint/parser": "^8.22.0",
-    "eslint": "^9.18.0",
-    "eslint-plugin-astro": "^1.3.1",
-    "lint-staged": "^15.4.3",
-    "prettier": "^3.4.2",
+    "@astrojs/check": "^0.9.10",
+    "@astrojs/sitemap": "^3.7.4",
+    "@typescript-eslint/parser": "^8.69.0",
+    "eslint": "^9.39.5",
+    "eslint-plugin-astro": "^1.7.0",
+    "lint-staged": "^15.5.2",
+    "prettier": "^3.9.6",
     "prettier-plugin-astro": "^0.14.1",
-    "typescript": "^5.7.3"
+    "typescript": "^5.9.3"
   },
   "lint-staged": {
     "*.{js,ts}": [
