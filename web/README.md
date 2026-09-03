@@ -29,7 +29,7 @@ pnpm preview
 
 ## Prerequisites
 
-- **Node.js** 22+ (use `.nvmrc`)
+- **Node.js** 22.19.0+ (use `.nvmrc`)
 - **pnpm** 9+ (via Corepack)
 
 ```bash
