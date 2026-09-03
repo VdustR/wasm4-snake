@@ -22,7 +22,7 @@ Complete development workflow for the WASM-4 Snake project, covering both game d
 | Tool | Version | Purpose |
 |------|---------|---------|
 | Rust | stable | Game development |
-| Node.js | 22+ | Web development, WASM-4 CLI |
+| Node.js | 22.19.0+ | Web development, WASM-4 CLI |
 | pnpm | 9+ | Package management |
 | w4 CLI | latest | WASM-4 development |
 
