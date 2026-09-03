@@ -37,9 +37,7 @@ impl PathFinder {
     /// Reset the pathfinder state
     fn reset(&mut self) {
         for row in &mut self.visited {
-            for cell in row {
-                *cell = false;
-            }
+            row.fill(false);
         }
         self.queue_head = 0;
         self.queue_tail = 0;
