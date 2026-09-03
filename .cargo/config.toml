@@ -14,6 +14,8 @@ rustflags = [
     "-C", "link-arg=--import-memory",
     "-C", "link-arg=--initial-memory=65536",
     "-C", "link-arg=--max-memory=65536",
+    # WASM-4 host functions are resolved by the runtime.
+    "-C", "link-arg=--allow-undefined",
 
     # Temporary workaround for #255 issue.
     # Reserve 8192 bytes of Rust stack space, offset from 6560.
