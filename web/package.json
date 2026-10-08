@@ -18,7 +18,15 @@
       "js-yaml": "4.3.2",
       "nanoid@<3.3.12": "3.3.18",
       "postcss": "8.5.26",
-      "undici": "8.10.2"
+      "undici": "8.10.2",
+      "brace-expansion@<2": "1.1.21",
+      "brace-expansion@>=4 <6": "5.0.12",
+      "devalue": "5.9.3",
+      "fast-uri": "3.1.8",
+      "postcss-selector-parser": "7.1.6",
+      "sharp": "0.35.5",
+      "smol-toml": "1.9.0",
+      "source-map-js": "1.2.2"
     }
   },
   "scripts": {
