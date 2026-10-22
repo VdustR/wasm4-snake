@@ -6,6 +6,27 @@ The web package uses pnpm overrides for the smallest compatible patched
 transitive versions. Keep the manifest and generated lockfile together. These
 updates do not change the Astro version, application code, or Node.js minimum.
 
+## Patched Vite development tooling
+
+The web package pins transitive Vite to 8.2.4 through the existing pnpm override
+mechanism. Astro 7.2.10 accepts this version through its `^8.0.13` dependency.
+The generated lockfile replaces Vite 8.2.2 without upgrading Astro or unrelated
+packages.
+
+Vite 8.2.4 is the official patched version for
+[editor CLI argument handling](https://github.com/advisories/GHSA-r825-w8mm-5pxw),
+[Windows path existence checks](https://github.com/advisories/GHSA-587h-7wmj-h5pm),
+and [Windows command argument escaping](https://github.com/advisories/GHSA-698v-4r3x-3vcv).
+These advisories concern development-server editor integration on Windows or
+WSL under the conditions in each advisory. The production site is static output
+on GitHub Pages; it does not run the Vite development server.
+
+The hosted Dependabot update reported that it could only resolve Vite 8.2.2,
+despite finding the patched tarball. The explicit override makes the selected
+patch reproducible through the repository's declared pnpm 9.15.4 toolchain.
+This fixes the repository resolution; it does not establish the cause of the
+hosted updater's failure or claim that the updater itself was repaired.
+
 ## Advisory paths not used by this repository
 
 These are repository-specific applicability decisions, not claims that the
