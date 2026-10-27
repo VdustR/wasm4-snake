@@ -44,7 +44,7 @@
   },
   "dependencies": {
     "@iconify-json/pixelarticons": "^1.2.9",
-    "astro": "^7.2.10",
+    "astro": "^7.3.3",
     "astro-icon": "^1.2.0"
   },
   "devDependencies": {
