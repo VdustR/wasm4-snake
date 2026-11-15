@@ -410,9 +410,9 @@ impl Game {
         // Add all enemy bodies
         for enemy in &self.enemies.enemies {
             if enemy.alive {
-                for i in 0..enemy.length {
+                for &segment in enemy.body.iter().take(enemy.length) {
                     if self.obstacles_count < self.obstacles_cache.len() {
-                        self.obstacles_cache[self.obstacles_count] = enemy.body[i];
+                        self.obstacles_cache[self.obstacles_count] = segment;
                         self.obstacles_count += 1;
                     }
                 }
@@ -1902,9 +1902,9 @@ impl Game {
                 // Legacy format: no sound settings
                 let checksum = buf[5..25].iter().fold(0u8, |acc, &b| acc.wrapping_add(b));
                 if checksum == buf[25] {
-                    for i in 0..5 {
+                    for (i, score) in self.high_scores.iter_mut().enumerate() {
                         let offset = 5 + i * 4;
-                        self.high_scores[i] = u32::from_le_bytes([
+                        *score = u32::from_le_bytes([
                             buf[offset],
                             buf[offset + 1],
                             buf[offset + 2],
@@ -1916,9 +1916,9 @@ impl Game {
                 // v2/v3 format with settings
                 let checksum = buf[5..26].iter().fold(0u8, |acc, &b| acc.wrapping_add(b));
                 if checksum == buf[26] {
-                    for i in 0..5 {
+                    for (i, score) in self.high_scores.iter_mut().enumerate() {
                         let offset = 5 + i * 4;
-                        self.high_scores[i] = u32::from_le_bytes([
+                        *score = u32::from_le_bytes([
                             buf[offset],
                             buf[offset + 1],
                             buf[offset + 2],
@@ -1953,9 +1953,9 @@ impl Game {
         buf[0..4].copy_from_slice(b"SNAK");
         buf[4] = 3; // Version 3
 
-        for i in 0..5 {
+        for (i, score) in self.high_scores.iter().enumerate() {
             let offset = 5 + i * 4;
-            let bytes = self.high_scores[i].to_le_bytes();
+            let bytes = score.to_le_bytes();
             buf[offset..offset + 4].copy_from_slice(&bytes);
         }
 
