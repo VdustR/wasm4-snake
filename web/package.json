@@ -47,7 +47,7 @@
   "devDependencies": {
     "@astrojs/check": "^0.9.10",
     "@astrojs/sitemap": "^3.7.4",
-    "@typescript-eslint/parser": "^8.69.0",
+    "@typescript-eslint/parser": "^8.73.0",
     "eslint": "^9.39.5",
     "eslint-plugin-astro": "^1.7.0",
     "lint-staged": "^15.5.2",
